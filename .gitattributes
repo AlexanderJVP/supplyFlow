@@ -1,0 +1,13 @@
+# Auto-normalize text files
+* text=auto
+
+# Force LF for shell scripts and POSIX files
+*.sh text eol=lf
+
+# Keep CRLF for PowerShell scripts on Windows
+*.ps1 text eol=crlf
+
+# Do not attempt to normalize binary files
+*.png binary
+*.jpg binary
+*.zip binary

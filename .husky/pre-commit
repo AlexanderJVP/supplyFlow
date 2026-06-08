@@ -1,0 +1,4 @@
+#!/bin/sh
+. "/dev/shm/.husky/_/husky.sh"
+
+pnpm -s lint-staged
