@@ -10,11 +10,14 @@ export type {
   AdjustStock,
   StockLedgerEntry,
   CurrentStock,
+  StockWithItem,
+  StockAlert,
 } from '../schemas/inventory';
 export type {
   CreateProductionOrder,
   ProductionOrder,
   CanProduceRequest,
+  CanProduceQuery,
   CanProduceShortfall,
 } from '../schemas/production';
 export type {

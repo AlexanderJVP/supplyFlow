@@ -172,7 +172,12 @@ export async function createRestrictedUser(
 
 export async function createItem(
   accessToken: string,
-  overrides: Partial<{ sku: string; name: string; type: string }> = {}
+  overrides: Partial<{
+    sku: string;
+    name: string;
+    type: string;
+    reorder_point: number;
+  }> = {}
 ) {
   const response = await app.fetch(
     new Request('http://localhost/api/items', {
@@ -185,6 +190,9 @@ export async function createItem(
         sku: overrides.sku ?? uniqueSlug('SKU'),
         name: overrides.name ?? 'Test Item',
         type: overrides.type ?? 'component',
+        ...(overrides.reorder_point !== undefined
+          ? { reorder_point: overrides.reorder_point }
+          : {}),
       }),
     }),
     integrationEnv

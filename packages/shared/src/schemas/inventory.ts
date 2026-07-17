@@ -38,6 +38,26 @@ export const CurrentStockSchema = z.object({
   quantity: z.number(),
 });
 
+export const StockWithItemSchema = z.object({
+  item_id: z.string().uuid(),
+  sku: z.string(),
+  name: z.string(),
+  unit_of_measure: z.string(),
+  reorder_point: z.number().nullable(),
+  quantity: z.number(),
+});
+
+export const StockAlertSchema = z.object({
+  item_id: z.string().uuid(),
+  sku: z.string(),
+  name: z.string(),
+  quantity: z.number(),
+  reorder_point: z.number(),
+  shortfall: z.number(),
+});
+
 export type AdjustStock = z.infer<typeof AdjustStockSchema>;
 export type StockLedgerEntry = z.infer<typeof StockLedgerEntrySchema>;
 export type CurrentStock = z.infer<typeof CurrentStockSchema>;
+export type StockWithItem = z.infer<typeof StockWithItemSchema>;
+export type StockAlert = z.infer<typeof StockAlertSchema>;

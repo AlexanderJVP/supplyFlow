@@ -1,0 +1,169 @@
+import { useMemo, useState, type FormEvent } from 'react';
+
+import { useItems } from '../../hooks/useItems';
+import {
+  useCanProduce,
+  useCancelProductionOrder,
+  useCompleteProductionOrder,
+  useCreateProductionOrder,
+  useProductionOrders,
+  useStartProductionOrder,
+} from '../../hooks/useProduction';
+
+export default function ProductionOrders() {
+  const { data: items } = useItems();
+  const { data: orders, isLoading, error } = useProductionOrders();
+
+  const createOrder = useCreateProductionOrder();
+  const startOrder = useStartProductionOrder();
+  const completeOrder = useCompleteProductionOrder();
+  const cancelOrder = useCancelProductionOrder();
+
+  const itemsById = useMemo(
+    () => new Map((items ?? []).map((item) => [item.id, item])),
+    [items]
+  );
+
+  const [itemId, setItemId] = useState('');
+  const [quantity, setQuantity] = useState('1');
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const { data: shortfalls } = useCanProduce(
+    itemId || null,
+    Number(quantity) || 0
+  );
+  const shortItems = (shortfalls ?? []).filter((s) => s.shortfall > 0);
+
+  async function handleCreate(e: FormEvent) {
+    e.preventDefault();
+    setFormError(null);
+
+    const qty = Number(quantity);
+    if (!itemId || !qty || qty <= 0) {
+      setFormError('Pick an item and a positive quantity.');
+      return;
+    }
+
+    try {
+      await createOrder.mutateAsync({ item_id: itemId, quantity: qty });
+      setQuantity('1');
+    } catch {
+      setFormError('Failed to create production order.');
+    }
+  }
+
+  return (
+    <div style={{ fontFamily: 'Arial, sans-serif', padding: 24 }}>
+      <h1>Production Orders</h1>
+
+      {isLoading && <p>Loading…</p>}
+      {error && (
+        <p style={{ color: 'red' }}>Failed to load production orders.</p>
+      )}
+
+      {orders && (
+        <table>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left' }}>Item</th>
+              <th style={{ textAlign: 'right' }}>Quantity</th>
+              <th style={{ textAlign: 'left' }}>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map((order) => (
+              <tr key={order.id}>
+                <td>{itemsById.get(order.item_id)?.name ?? order.item_id}</td>
+                <td style={{ textAlign: 'right' }}>{order.quantity}</td>
+                <td>{order.status}</td>
+                <td style={{ display: 'flex', gap: 8 }}>
+                  {order.status === 'draft' && (
+                    <button onClick={() => startOrder.mutate(order.id)}>
+                      Start
+                    </button>
+                  )}
+                  {(order.status === 'draft' ||
+                    order.status === 'in_progress') && (
+                    <button onClick={() => completeOrder.mutate(order.id)}>
+                      Complete
+                    </button>
+                  )}
+                  {(order.status === 'draft' ||
+                    order.status === 'in_progress') && (
+                    <button onClick={() => cancelOrder.mutate(order.id)}>
+                      Cancel
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {completeOrder.isError && (
+        <p style={{ color: 'red' }}>
+          Failed to complete order — check that all components have enough
+          stock.
+        </p>
+      )}
+
+      <h2 style={{ marginTop: 32 }}>New production order</h2>
+      <form onSubmit={handleCreate} style={{ maxWidth: 360 }}>
+        <div style={{ marginBottom: 8 }}>
+          <label>
+            Item
+            <select
+              value={itemId}
+              onChange={(e) => setItemId(e.target.value)}
+              style={{ display: 'block', width: '100%' }}
+            >
+              <option value="">Select an item…</option>
+              {items?.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.sku} — {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div style={{ marginBottom: 8 }}>
+          <label>
+            Quantity
+            <input
+              type="number"
+              min={1}
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              style={{ display: 'block', width: '100%' }}
+            />
+          </label>
+        </div>
+
+        {shortItems.length > 0 && (
+          <div style={{ color: '#b91c1c', marginBottom: 8 }}>
+            <p style={{ margin: 0 }}>
+              Not enough stock to build this quantity:
+            </p>
+            <ul>
+              {shortItems.map((s) => (
+                <li key={s.item_id}>
+                  {itemsById.get(s.item_id)?.name ?? s.item_id}: need{' '}
+                  {s.required}, have {s.available} (short {s.shortfall})
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {formError && <p style={{ color: 'red' }}>{formError}</p>}
+
+        <button type="submit" disabled={createOrder.isPending}>
+          {createOrder.isPending ? 'Creating…' : 'Create order'}
+        </button>
+      </form>
+    </div>
+  );
+}

@@ -1,26 +1,15 @@
 import { useState } from 'react';
 
 import { useItems } from '../../hooks/useItems';
-import { useAuth } from '../../context/AuthContext';
 import BomTreeViewer from '../bom/BomTreeViewer';
 
 export default function ItemList() {
   const { data: items, isLoading, error } = useItems();
-  const { signOut } = useAuth();
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', padding: 24 }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-        }}
-      >
-        <h1>Items</h1>
-        <button onClick={signOut}>Sign out</button>
-      </div>
+      <h1>Items</h1>
 
       {isLoading && <p>Loading…</p>}
       {error && <p style={{ color: 'red' }}>Failed to load items.</p>}

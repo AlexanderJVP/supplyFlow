@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 
 import { itemsRouter } from './routes/items';
 import { bomRouter } from './routes/bom';
+import { inventoryRouter } from './routes/inventory';
+import { productionRouter } from './routes/production';
 import { tenantsRouter } from './routes/tenants';
 import type { AppEnv } from './types';
 
@@ -33,6 +35,8 @@ app.use('*', async (c, next) => {
 app.get('/', (c) => c.text('Manufacturing Platform — Server'));
 app.route('/api/items', itemsRouter);
 app.route('/api/bom', bomRouter);
+app.route('/api/inventory', inventoryRouter);
+app.route('/api/production', productionRouter);
 app.route('/api/admin/tenants', tenantsRouter);
 
 app.get('/api/health', (c) =>
