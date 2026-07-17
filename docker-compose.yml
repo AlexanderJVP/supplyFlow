@@ -3,17 +3,29 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile
-    command: sh -lc "pnpm dlx wrangler dev --local --ip 0.0.0.0 --port 8787"
+    working_dir: /workspace/server
+    # .dev.vars' SUPABASE_URL (127.0.0.1:54321) is written for host-side dev;
+    # inside this container 127.0.0.1 is the container itself, not the host
+    # where the local Supabase stack's Kong gateway is actually listening —
+    # override it to Docker Desktop's host gateway alias.
+    command: sh -lc "pnpm dlx wrangler dev --local --ip 0.0.0.0 --port 8787 --var SUPABASE_URL:http://host.docker.internal:54321"
     ports:
       - "8787:8787"
     volumes:
       - .:/workspace
-      - api_node_modules:/workspace/node_modules
+      - api_root_node_modules:/workspace/node_modules
+      - api_node_modules:/workspace/server/node_modules
+      - api_shared_node_modules:/workspace/packages/shared/node_modules
+      # wrangler's local D1/DO SQLite storage uses WAL mode, which needs a
+      # real mmap-capable filesystem — it can't open its shared-memory file
+      # over the bind-mounted Windows host path (SQLITE_IOERR_SHMOPEN).
+      - api_wrangler_state:/workspace/server/.wrangler
 
   client:
     build:
       context: .
       dockerfile: client/Dockerfile
+    working_dir: /workspace/client
     command: sh -lc "pnpm dlx vite --host 0.0.0.0 --port 5173"
     depends_on:
       - api
@@ -21,8 +33,15 @@ services:
       - "5173:5173"
     volumes:
       - .:/workspace
-      - client_node_modules:/workspace/node_modules
+      - client_root_node_modules:/workspace/node_modules
+      - client_node_modules:/workspace/client/node_modules
+      - client_shared_node_modules:/workspace/packages/shared/node_modules
 
 volumes:
+  api_root_node_modules:
   api_node_modules:
+  api_shared_node_modules:
+  api_wrangler_state:
+  client_root_node_modules:
   client_node_modules:
+  client_shared_node_modules:
