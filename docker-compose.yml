@@ -1,0 +1,28 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    command: sh -lc "pnpm dlx wrangler dev --local --ip 0.0.0.0 --port 8787"
+    ports:
+      - "8787:8787"
+    volumes:
+      - .:/workspace
+      - api_node_modules:/workspace/node_modules
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    command: sh -lc "pnpm dlx vite --host 0.0.0.0 --port 5173"
+    depends_on:
+      - api
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/workspace
+      - client_node_modules:/workspace/node_modules
+
+volumes:
+  api_node_modules:
+  client_node_modules:

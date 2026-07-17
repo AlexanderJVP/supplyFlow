@@ -20,6 +20,33 @@ This is **not** a warehouse system. It is a **Manufacturing Operations Platform*
 
 ---
 
+## Current Development Snapshot
+
+Phase 1 (auth/tenants/roles) and the start of Phase 2 (items + BOM) are now real and verified end-to-end locally, not just scaffolded.
+
+- The app runs in two Docker services: `client` on `5173` and `api` on `8787` (see `docker-compose.yml`, `client/Dockerfile`, `server/Dockerfile`).
+- Local Supabase runs separately through the CLI with `pnpm run db:up` and `pnpm run db:reset`.
+- **Auth**: `server/src/lib/supabase.ts` (`createUserClient`/`createAdminClient`) and `server/src/middleware/auth.ts` (`requireAuth`, `requirePermission`) are implemented per the Auth Architecture section above.
+- **Tenant provisioning**: `POST /api/admin/tenants` (`server/src/routes/tenants.ts`), gated by `X-Admin-Secret` matching `ADMIN_SECRET`. Creates the Supabase auth user, calls the `provision_tenant` RPC (migration `20260717000001_provision_tenant.sql` — tenant + Admin role with full permissions + profile + one workflow step per proposal type, one transaction), then sets `app_metadata`. Verified live: provisioned a tenant, logged in, and confirmed the JWT carries `tenant_id`/`role_id`/`permissions`.
+- **Items**: `server/src/routes/items.ts` is fully Supabase-backed (`requireAuth` + `requirePermission('items.create')`), RLS-scoped by the caller's `tenant_id`.
+- **BOM**: `server/src/routes/bom.ts` exposes `GET /:itemId/tree` (calls the `get_bom_tree` recursive-CTE RPC, migration `20260717000002_bom_tree_rpc.sql`) and `POST /` (requires `bom.edit`). Circular references are rejected by a DB trigger (`prevent_bom_cycle`, migration `20260717000000_bom_cycle_check.sql`) — verified it blocks both self-references and multi-hop cycles.
+- **Client**: `client/src/App.tsx` renders Login → Items list (TanStack Query, `useItems`) → an inline BOM tree viewer (`useBomTree`, "View BOM" button per row). No router yet — deliberately simple conditional rendering, not React Router. Verified in a real headless-Chromium session: sign in, item list renders, BOM tree renders with correct quantities.
+- `packages/shared` now has schemas for items, tenants, bom, inventory, production, proposals, and auth (permissions shape + JWT claims), re-exported from `src/index.ts`/`src/types/index.ts`. Both `client` and `server` depend on `@manufacturing/shared` via `workspace:*` (previously it was a deep relative import).
+- `pnpm run test` (10 tests) and `pnpm run typecheck` are both green.
+- **Known gotcha**: Hono's bare `.use(requireAuth)` (no path argument) did not apply to a nested dynamic route (`/:itemId/tree`) even though it worked for a root `/` route — it silently left `c.get('supabase')`/`c.get('user')` unset and crashed with a 500 instead of returning 401. Always write `.use('*', requireAuth)` explicitly in new sub-routers, and cover it with an "unauthenticated request → 401" test per route (this is what caught it).
+- **Known local-only quirk**: after `supabase db reset`, Kong can hold a stale IP for the `auth` container and 502 until `docker restart supabase_kong_supply`. Docker DNS-caching artifact of the CLI's restart step, not application code.
+- Git history: two commits (`34b9eec`, `456cf10` — the `.gitignore`/UTF-16 fix). Everything else described above (schemas, auth, tenant RPC, items/BOM wiring, client) is uncommitted in the working tree as of 2026-07-17.
+
+### Resume Point
+
+When resuming this project, the next practical work is:
+
+1. Review and commit the current working tree (see git history note above).
+2. Build out Production Orders (Phase 4): `complete_production_order` RPC (produce + deduct BOM components atomically) and the `can_produce` availability check from the PostgreSQL Patterns section above.
+3. Add a real router (React Router v7) once there's more than one page-level flow to navigate between.
+
+---
+
 ## Non-Negotiable Security Rules
 
 These are checked on every PR. No exceptions.

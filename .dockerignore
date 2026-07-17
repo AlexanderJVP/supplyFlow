@@ -1,0 +1,11 @@
+**/node_modules
+**/.wrangler
+**/dist
+**/.vite
+**/coverage
+**/.turbo
+**/.cache
+.git
+.github
+.vscode
+*.log

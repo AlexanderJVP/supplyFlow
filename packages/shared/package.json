@@ -7,8 +7,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "echo 'No shared tests yet'"
   },
-  "devDependencies": {
-    "typescript": "^5.0.0",
+  "dependencies": {
     "zod": "^3.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
   }
 }

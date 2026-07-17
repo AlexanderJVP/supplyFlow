@@ -5,6 +5,8 @@ server/node_modules/
 dist/
 client/dist/
 server/dist/
+.wrangler/
+server/.wrangler/
 .env
 *.env
 .dev.vars

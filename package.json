@@ -9,6 +9,12 @@
   ],
   "scripts": {
     "dev": "echo 'Run client and server separately: pnpm --filter client run dev && pnpm --filter server run dev'",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down -v",
+    "db:up": "pnpm dlx supabase start",
+    "db:down": "pnpm dlx supabase stop",
+    "db:reset": "pnpm dlx supabase db reset",
+    "db:status": "pnpm dlx supabase status",
     "typecheck": "pnpm --filter @manufacturing/shared run typecheck && pnpm --filter client run typecheck && pnpm --filter server run typecheck",
     "test": "pnpm --filter @manufacturing/shared run test && pnpm --filter client run test && pnpm --filter server run test",
     "build": "pnpm -w -r run build || echo 'no builds configured'",

@@ -1,14 +1,6 @@
 name = "manufacturing-platform-server"
-main = "./dist/index.js"
-compatibility_date = "2026-06-08"
+main = "./src/index.ts"
+account_id = "b6698ae660f620cf3fdf9c75c7da5c9d"
+compatibility_date = "2026-06-19"
 
-[build]
-command = "npm run build"
-
-[vars]
-SUPABASE_URL = ""
-SUPABASE_ANON_KEY = ""
-SUPABASE_SERVICE_KEY = ""
-ALLOWED_ORIGIN = ""
-ADMIN_ORIGIN = ""
-ADMIN_SECRET = ""
+# Secrets are provided through `.dev.vars` locally and Wrangler secrets in Cloudflare.
