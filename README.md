@@ -39,6 +39,12 @@ Supabase local DB
 - Use the publishable and secret keys reported by `pnpm run db:status` for local Supabase access.
 - For this repo, the local config is intentionally split: Docker Compose handles app containers, and the Supabase CLI handles the database stack.
 
+Server tests
+
+- `server/src/routes/*.test.ts` are integration tests, not mocks: they call the real Hono app against a real local Supabase instance (provisioning tenants, creating items/BOM lines, exercising RLS and the BOM cycle trigger), then clean up what they created.
+- Run `pnpm run db:up` first, or `pnpm --filter server run test` will fail with connection errors instead of silently passing.
+- CI starts its own disposable Supabase stack via the Supabase CLI before running tests (see `.github/workflows/ci.yml`).
+
 Cloudflare setup
 
 - The server Worker is configured in `server/wrangler.toml`.

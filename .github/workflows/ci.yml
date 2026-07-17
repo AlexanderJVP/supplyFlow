@@ -23,17 +23,36 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase (applies migrations + seed)
+        run: supabase start
+
+      - name: Export Supabase connection details for tests
+        run: |
+          echo "SUPABASE_URL=$(supabase status -o json | jq -r '.API_URL')" >> "$GITHUB_ENV"
+          echo "SUPABASE_ANON_KEY=$(supabase status -o json | jq -r '.ANON_KEY')" >> "$GITHUB_ENV"
+          echo "SUPABASE_SERVICE_KEY=$(supabase status -o json | jq -r '.SERVICE_ROLE_KEY')" >> "$GITHUB_ENV"
+
       - name: Typecheck (per-package)
         run: |
-          pnpm --filter @manufacturing/shared run typecheck || true
-          pnpm --filter client run typecheck || true
-          pnpm --filter server run typecheck || true
+          pnpm --filter @manufacturing/shared run typecheck
+          pnpm --filter client run typecheck
+          pnpm --filter server run typecheck
 
       - name: Run tests (per-package)
         run: |
-          pnpm --filter @manufacturing/shared run test || true
-          pnpm --filter client run test || true
-          pnpm --filter server run test || true
+          pnpm --filter @manufacturing/shared run test
+          pnpm --filter client run test
+          pnpm --filter server run test
 
       - name: Lint workspace
-        run: pnpm run lint || true
+        run: pnpm run lint
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop

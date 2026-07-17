@@ -18,7 +18,7 @@
     "typecheck": "pnpm --filter @manufacturing/shared run typecheck && pnpm --filter client run typecheck && pnpm --filter server run typecheck",
     "test": "pnpm --filter @manufacturing/shared run test && pnpm --filter client run test && pnpm --filter server run test",
     "build": "pnpm -w -r run build || echo 'no builds configured'",
-    "lint": "eslint \"**/*.{ts,tsx,js,jsx}\" --fix || true",
+    "lint": "eslint \"**/*.{ts,tsx,js,jsx}\" --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "prepare": "husky install"
   },
