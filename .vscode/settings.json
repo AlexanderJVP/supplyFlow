@@ -3,6 +3,8 @@
         "git rm": true,
         "true": true,
         "git add": true,
-        "git commit": true
+        "git commit": true,
+        "ForEach-Object": true,
+        "git push": true
     }
 }
