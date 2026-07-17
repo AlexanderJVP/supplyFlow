@@ -21,3 +21,4 @@ export const ItemSchema = CreateItemSchema.extend({
 
 export type CreateItem = z.infer<typeof CreateItemSchema>;
 export type Item = z.infer<typeof ItemSchema>;
+export type ItemType = z.infer<typeof ItemTypeSchema>;

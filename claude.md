@@ -39,11 +39,20 @@ Phase 1 (auth/tenants/roles) and the start of Phase 2 (items + BOM) are now real
 
 ### Resume Point
 
-When resuming this project, the next practical work is:
+Phases 1-4 (auth/tenants/roles, items/BOM, inventory, production orders) are now real, tested (33/33 passing), and verified end-to-end through the actual Docker Compose stack — including a full BOM → stock → production-order-completion run. React Router v7 landed. Docker Compose itself is fixed (working dirs, node_modules volume paths, wrangler's local SQLite state, and container→host Supabase networking all had to be corrected — see the note above).
 
-1. Review and commit the current working tree (see git history note above).
-2. Build out Production Orders (Phase 4): `complete_production_order` RPC (produce + deduct BOM components atomically) and the `can_produce` availability check from the PostgreSQL Patterns section above.
-3. Add a real router (React Router v7) once there's more than one page-level flow to navigate between.
+Two UI gaps surfaced during manual testing (2026-07-17) and are next up:
+
+1. **Add a BOM-line creation form** to `BomTreeViewer.tsx` (or a sibling component) — child item picker + quantity, using the already-existing `useCreateBomLine` hook. `client/src/pages/items/ItemList.tsx` had the same gap for item creation (fixed); BOM is view-only.
+2. **Add `PATCH /api/items/:id` (edit) and `PATCH /api/items/:id/archive`** — `server/src/routes/items.ts` only has `GET /` and `POST /` today, even though `items.edit`/`items.archive` are already defined and role-provisioned in the permissions shape.
+3. **Wire item edit/archive into `ItemList.tsx`** once step 2 lands.
+4. **Full BOM→production regression test in the browser** after step 1: build bolt→bike (qty 4), verify `can-produce` shows a real shortfall/OK instead of always-empty, complete an order, confirm the ledger deducts bolts and credits bikes.
+5. Bundle steps 1-3 as one "Phase 2 completion" commit.
+6. **Start Phase 5 (Workflow & Proposals)** — `proposals`/`proposal_reviews`/`workflow_steps` tables already exist and get seeded per-tenant via `provision_tenant`, but there's no API or RPC yet. Build submit-proposal, review/approve, and an auto-apply-BOM-change RPC.
+7. **Add cursor-based pagination** (`?after=<uuid>&limit=50`) to the items/production/inventory list endpoints per the Phase 6 checklist — they currently return unbounded result sets.
+8. **Add integration tests** for the item edit/archive routes, plus an explicit BOM tenant-isolation test (BOM has cycle/permission tests but, unlike items/inventory/production, no tenant-isolation test).
+9. Tighten this document's Phase 1-4 checklists below — several boxes are stale-unchecked despite being implemented, and neither "item create/edit/archive form" nor "BOM line create form" were ever spelled out as their own line items, which is how both gaps went unnoticed.
+10. Re-run the full verify pass (typecheck + all tests + a live Docker E2E smoke test) after the above, then commit Phase 5 work separately.
 
 ---
 

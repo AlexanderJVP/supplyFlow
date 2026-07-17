@@ -1,4 +1,4 @@
-export type { CreateItem, Item } from '../schemas/items';
+export type { CreateItem, Item, ItemType } from '../schemas/items';
 export type { CreateTenant } from '../schemas/tenants';
 export type {
   CreateBomLine,
