@@ -31,6 +31,12 @@ app.use('*', async (c, next) => {
       'Access-Control-Allow-Methods',
       'GET, POST, PATCH, DELETE, OPTIONS'
     );
+    // Browsers strip non-safelisted response headers on cross-origin
+    // requests unless the server explicitly exposes them -- without this,
+    // client code reading response.headers['x-next-cursor'] silently gets
+    // undefined in a real browser even though it works fine in tests (which
+    // call the Hono app directly, bypassing browser CORS entirely).
+    c.header('Access-Control-Expose-Headers', 'X-Next-Cursor');
   }
 
   if (c.req.method === 'OPTIONS') return c.body(null, 204);

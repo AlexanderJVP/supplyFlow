@@ -70,6 +70,22 @@ describe('CORS allowlist', () => {
 
     expect(response.status).toBe(200);
   });
+
+  it('exposes X-Next-Cursor so browser clients can read it cross-origin', async () => {
+    const response = await app.fetch(
+      new Request('http://localhost/api/health', {
+        headers: { Origin: 'http://localhost:5173' },
+      }),
+      {
+        ALLOWED_ORIGIN: 'http://localhost:5173',
+        ADMIN_ORIGIN: 'http://localhost:5174',
+      }
+    );
+
+    expect(response.headers.get('Access-Control-Expose-Headers')).toContain(
+      'X-Next-Cursor'
+    );
+  });
 });
 
 describe('items route auth', () => {

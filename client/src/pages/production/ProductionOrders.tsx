@@ -1,18 +1,22 @@
 import { useMemo, useState, type FormEvent } from 'react';
 
+import Pager from '../../components/Pager';
+import { useCursorPagination } from '../../hooks/useCursorPagination';
 import { useItems } from '../../hooks/useItems';
 import {
   useCanProduce,
   useCancelProductionOrder,
   useCompleteProductionOrder,
   useCreateProductionOrder,
-  useProductionOrders,
+  useProductionOrdersPage,
   useStartProductionOrder,
 } from '../../hooks/useProduction';
 
 export default function ProductionOrders() {
   const { data: items } = useItems();
-  const { data: orders, isLoading, error } = useProductionOrders();
+  const pagination = useCursorPagination();
+  const { data, isLoading, error } = useProductionOrdersPage(pagination.after);
+  const orders = data?.orders;
 
   const createOrder = useCreateProductionOrder();
   const startOrder = useStartProductionOrder();
@@ -101,6 +105,14 @@ export default function ProductionOrders() {
           </tbody>
         </table>
       )}
+
+      <Pager
+        page={pagination.page}
+        canGoPrev={pagination.canGoPrev}
+        canGoNext={!!data?.nextCursor}
+        onPrev={pagination.goPrev}
+        onNext={() => pagination.goNext(data?.nextCursor)}
+      />
 
       {completeOrder.isError && (
         <p style={{ color: 'red' }}>

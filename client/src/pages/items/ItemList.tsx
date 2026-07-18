@@ -2,10 +2,12 @@ import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import type { Item, ItemType } from '@manufacturing/shared';
 
+import Pager from '../../components/Pager';
+import { useCursorPagination } from '../../hooks/useCursorPagination';
 import {
   useArchiveItem,
   useCreateItem,
-  useItems,
+  useItemsPage,
   useUpdateItem,
 } from '../../hooks/useItems';
 import { usePermission } from '../../hooks/usePermission';
@@ -58,7 +60,9 @@ function EditItemRow({ item, onDone }: { item: Item; onDone: () => void }) {
 }
 
 export default function ItemList() {
-  const { data: items, isLoading, error } = useItems();
+  const pagination = useCursorPagination();
+  const { data, isLoading, error } = useItemsPage(pagination.after);
+  const items = data?.items;
   const createItem = useCreateItem();
   const archiveItem = useArchiveItem();
   const canEdit = usePermission('items.edit');
@@ -152,6 +156,14 @@ export default function ItemList() {
           </tbody>
         </table>
       )}
+
+      <Pager
+        page={pagination.page}
+        canGoPrev={pagination.canGoPrev}
+        canGoNext={!!data?.nextCursor}
+        onPrev={pagination.goPrev}
+        onNext={() => pagination.goNext(data?.nextCursor)}
+      />
 
       <h2 style={{ marginTop: 32 }}>New item</h2>
       <form onSubmit={handleCreate} style={{ maxWidth: 360 }}>

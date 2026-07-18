@@ -11,7 +11,25 @@ export function useProductionOrders() {
   return useQuery({
     queryKey: ['production'],
     queryFn: () =>
-      api.get<ProductionOrder[]>('/production').then((r) => r.data),
+      api
+        .get<ProductionOrder[]>('/production', { params: { limit: 200 } })
+        .then((r) => r.data),
+  });
+}
+
+// Backs the paged production orders table on the Production page.
+export function useProductionOrdersPage(after: string | undefined, limit = 50) {
+  return useQuery({
+    queryKey: ['production', 'page', after, limit],
+    queryFn: async () => {
+      const response = await api.get<ProductionOrder[]>('/production', {
+        params: { after, limit },
+      });
+      return {
+        orders: response.data,
+        nextCursor: response.headers['x-next-cursor'] as string | undefined,
+      };
+    },
   });
 }
 

@@ -11,7 +11,26 @@ import { api } from '../lib/api';
 export function useCurrentStock() {
   return useQuery({
     queryKey: ['inventory'],
-    queryFn: () => api.get<StockWithItem[]>('/inventory').then((r) => r.data),
+    queryFn: () =>
+      api
+        .get<StockWithItem[]>('/inventory', { params: { limit: 200 } })
+        .then((r) => r.data),
+  });
+}
+
+// Backs the paged stock table on the Inventory page.
+export function useCurrentStockPage(after: string | undefined, limit = 50) {
+  return useQuery({
+    queryKey: ['inventory', 'page', after, limit],
+    queryFn: async () => {
+      const response = await api.get<StockWithItem[]>('/inventory', {
+        params: { after, limit },
+      });
+      return {
+        rows: response.data,
+        nextCursor: response.headers['x-next-cursor'] as string | undefined,
+      };
+    },
   });
 }
 

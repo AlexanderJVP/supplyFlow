@@ -1,6 +1,12 @@
 import { useState, type FormEvent } from 'react';
 
-import { useAdjustStock, useCurrentStock } from '../../hooks/useInventory';
+import Pager from '../../components/Pager';
+import { useCursorPagination } from '../../hooks/useCursorPagination';
+import {
+  useAdjustStock,
+  useCurrentStock,
+  useCurrentStockPage,
+} from '../../hooks/useInventory';
 import MovementHistory from './MovementHistory';
 
 const LEDGER_REASONS = [
@@ -14,7 +20,12 @@ const LEDGER_REASONS = [
 ] as const;
 
 export default function StockDashboard() {
-  const { data: stock, isLoading, error } = useCurrentStock();
+  const pagination = useCursorPagination();
+  const { data, isLoading, error } = useCurrentStockPage(pagination.after);
+  const stock = data?.rows;
+  // Separately fetched (unpaginated up to 200) so the "Adjust stock" item
+  // picker below always lists every item, not just the current table page.
+  const { data: allStock } = useCurrentStock();
   const adjustStock = useAdjustStock();
 
   const [historyItem, setHistoryItem] = useState<{
@@ -106,6 +117,14 @@ export default function StockDashboard() {
         </table>
       )}
 
+      <Pager
+        page={pagination.page}
+        canGoPrev={pagination.canGoPrev}
+        canGoNext={!!data?.nextCursor}
+        onPrev={pagination.goPrev}
+        onNext={() => pagination.goNext(data?.nextCursor)}
+      />
+
       <h2 style={{ marginTop: 32 }}>Adjust stock</h2>
       <form onSubmit={handleAdjust} style={{ maxWidth: 360 }}>
         <div style={{ marginBottom: 8 }}>
@@ -117,7 +136,7 @@ export default function StockDashboard() {
               style={{ display: 'block', width: '100%' }}
             >
               <option value="">Select an item…</option>
-              {stock?.map((row) => (
+              {allStock?.map((row) => (
                 <option key={row.item_id} value={row.item_id}>
                   {row.sku} — {row.name}
                 </option>
