@@ -121,7 +121,37 @@ export async function provisionTestTenant(prefix: string): Promise<TestTenant> {
 }
 
 export async function cleanupTenant(tenantId: string, adminUserId: string) {
-  await adminClient.from('tenants').delete().eq('id', tenantId);
+  // proposal_reviews.reviewer_id -> profiles(id) has no ON DELETE behavior
+  // (a real schema gap found via manual smoke testing 2026-07-18: a tenant
+  // that has ever had a proposal reviewed can't be cascade-deleted through
+  // `tenants`, since profiles.tenant_id's cascade and proposals.tenant_id's
+  // cascade race as two independent paths and the FK check on
+  // proposal_reviews.reviewer_id can fire before the other path removes the
+  // referencing row). Clear it out by hand first so cleanup actually
+  // succeeds instead of silently leaving orphaned tenants in the local DB.
+  const { data: profiles } = await adminClient
+    .from('profiles')
+    .select('id')
+    .eq('tenant_id', tenantId);
+  if (profiles && profiles.length > 0) {
+    await adminClient
+      .from('proposal_reviews')
+      .delete()
+      .in(
+        'reviewer_id',
+        profiles.map((p) => p.id)
+      );
+  }
+
+  const { error } = await adminClient
+    .from('tenants')
+    .delete()
+    .eq('id', tenantId);
+  if (error) {
+    throw new Error(
+      `Failed to clean up test tenant ${tenantId}: ${error.message}`
+    );
+  }
   await adminClient.auth.admin.deleteUser(adminUserId);
 }
 
