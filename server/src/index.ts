@@ -4,6 +4,7 @@ import { itemsRouter } from './routes/items';
 import { bomRouter } from './routes/bom';
 import { inventoryRouter } from './routes/inventory';
 import { productionRouter } from './routes/production';
+import { proposalsRouter } from './routes/proposals';
 import { tenantsRouter } from './routes/tenants';
 import type { AppEnv } from './types';
 
@@ -37,6 +38,7 @@ app.route('/api/items', itemsRouter);
 app.route('/api/bom', bomRouter);
 app.route('/api/inventory', inventoryRouter);
 app.route('/api/production', productionRouter);
+app.route('/api/proposals', proposalsRouter);
 app.route('/api/admin/tenants', tenantsRouter);
 
 app.get('/api/health', (c) =>

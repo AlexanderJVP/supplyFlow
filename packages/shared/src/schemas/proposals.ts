@@ -50,3 +50,29 @@ export type CreateProposal = z.infer<typeof CreateProposalSchema>;
 export type Proposal = z.infer<typeof ProposalSchema>;
 export type CreateProposalReview = z.infer<typeof CreateProposalReviewSchema>;
 export type ProposalReview = z.infer<typeof ProposalReviewSchema>;
+
+// Shape of `proposals.payload` when `type === 'bom_change'`. Applied
+// atomically by the `apply_bom_change_payload` RPC once a proposal clears
+// its final workflow step — see supabase/migrations/20260718000000_proposal_workflow_rpc.sql.
+export const BomChangeLineCreateSchema = z.object({
+  parent_item_id: z.string().uuid(),
+  child_item_id: z.string().uuid(),
+  quantity: z.number().positive(),
+  notes: z.string().max(2000).optional(),
+});
+
+export const BomChangeLineUpdateSchema = z.object({
+  id: z.string().uuid(),
+  quantity: z.number().positive().optional(),
+  notes: z.string().max(2000).optional(),
+});
+
+export const BomChangePayloadSchema = z.object({
+  create: z.array(BomChangeLineCreateSchema).default([]),
+  update: z.array(BomChangeLineUpdateSchema).default([]),
+  delete: z.array(z.string().uuid()).default([]),
+});
+
+export type BomChangeLineCreate = z.infer<typeof BomChangeLineCreateSchema>;
+export type BomChangeLineUpdate = z.infer<typeof BomChangeLineUpdateSchema>;
+export type BomChangePayload = z.infer<typeof BomChangePayloadSchema>;
