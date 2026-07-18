@@ -22,41 +22,43 @@ This is **not** a warehouse system. It is a **Manufacturing Operations Platform*
 
 ## Current Development Snapshot
 
-Phases 1-4 (auth/tenants/roles, items/BOM, inventory, production orders) and Phase 5 (workflow & proposals) are real and verified end-to-end locally, not just scaffolded. See Resume Point below for the current gaps and next steps.
+Phases 1-5 are real, tested, and verified end-to-end — including a full live Docker Compose smoke test (provision tenant → items → BOM line → stock → production order → proposal submit/approve, all through the actual containers, 2026-07-18). Most of Phase 6 (polish/production-readiness) is now done too. See Resume Point below for what's left.
 
-- The app runs in two Docker services: `client` on `5173` and `api` on `8787` (see `docker-compose.yml`, `client/Dockerfile`, `server/Dockerfile`).
+- The app runs in two Docker services: `client` on `5173` and `api` on `8787` (see `docker-compose.yml`, `client/Dockerfile`, `server/Dockerfile`). **Gotcha**: the api/client containers' `node_modules` live in named Docker volumes that persist across `docker compose up --build` — adding a new dependency to `package.json` requires `docker compose down -v` (drops the volumes) before the next `up --build`, or the container runs against stale, pre-install node_modules and fails to resolve the new import. Hit this exact failure adding `@hono/sentry` (2026-07-18).
 - Local Supabase runs separately through the CLI with `pnpm run db:up` and `pnpm run db:reset`.
-- **Auth**: `server/src/lib/supabase.ts` (`createUserClient`/`createAdminClient`) and `server/src/middleware/auth.ts` (`requireAuth`, `requirePermission`) are implemented per the Auth Architecture section above.
-- **Tenant provisioning**: `POST /api/admin/tenants` (`server/src/routes/tenants.ts`), gated by `X-Admin-Secret` matching `ADMIN_SECRET`. Creates the Supabase auth user, calls the `provision_tenant` RPC (migration `20260717000001_provision_tenant.sql` — tenant + Admin role with full permissions + profile + one workflow step per proposal type, one transaction), then sets `app_metadata`. Verified live: provisioned a tenant, logged in, and confirmed the JWT carries `tenant_id`/`role_id`/`permissions`.
-- **Items**: `server/src/routes/items.ts` is Supabase-backed and now has full CRUD: `GET /` (paginated), `POST /`, `PATCH /:id` (edit), `PATCH /:id/archive`, gated by `items.create`/`items.edit`/`items.archive` and RLS-scoped by the caller's `tenant_id`. Wired into `ItemList.tsx` (inline edit row + archive button, permission-gated via the new `usePermission` hook).
-- **BOM**: `server/src/routes/bom.ts` exposes `GET /:itemId/tree` (recursive-CTE RPC) and `POST /` (requires `bom.edit`). Circular references are rejected by `prevent_bom_cycle` (migration `20260717000000_bom_cycle_check.sql`), and cross-tenant references (parent/child item belonging to a different tenant than the BOM line) are rejected by `prevent_bom_cross_tenant` (migration `20260718000000_bom_tenant_check.sql`, added 2026-07-18 after a real gap was found — RLS doesn't catch this because FK lookups bypass it). `BomTreeViewer.tsx` now has a child-item + quantity form wired to `useCreateBomLine` (`client/src/hooks/useBom.ts`), gated by `bom.edit`.
-- **Inventory & Production**: `server/src/routes/inventory.ts` and `server/src/routes/production.ts` are Supabase-backed and tested, including the `/inventory/alerts` reorder-point endpoint; `complete_production_order` and `can_produce` RPCs back the production-order flow, verified end-to-end for a multi-level bolt→frame→bike BOM (see `production.test.ts`). Frontend pages exist at `client/src/pages/inventory/StockDashboard.tsx`, `MovementHistory.tsx`, and `client/src/pages/production/ProductionOrders.tsx`.
-- **Workflow & Proposals (Phase 5, added 2026-07-18)**: `server/src/routes/proposals.ts` (`GET /`, `POST /`, `POST /:id/submit`, `POST /:id/review`), backed by two RPCs (`20260718000001_proposal_workflow_rpc.sql`): `submit_proposal` (draft → pending_review) and `review_proposal`, which walks the tenant's per-type `workflow_steps` chain one step at a time — matching the reviewer's actual `profiles.role_id` against that step's required role, not just the coarse `proposals.review` permission — and on final approval of a `bom_change` proposal atomically applies the payload to `bom_lines` via `apply_bom_change_payload` (create/update/delete, each audited). No frontend UI yet (proposal inbox/review screen — see Resume Point).
-- **Client**: `client/src/App.tsx` uses React Router v7 with real routes (`/login`, `/items`, `/inventory`, `/production`) behind a `ProtectedLayout` guard.
-- `packages/shared` has schemas for items (incl. `UpdateItemSchema`), tenants, bom, inventory, production, proposals (incl. `BomChangePayloadSchema`), auth, and pagination (`PaginationQuerySchema`), re-exported from `src/index.ts`. Both `client` and `server` depend on `@manufacturing/shared` via `workspace:*`.
-- **Pagination**: `items`/`production`/`inventory` list endpoints accept `?after=<uuid>&limit=<n>` (default 50, max 200) and report a next-page cursor via the `X-Next-Cursor` response header, keeping the JSON body a plain array for backward compatibility. No frontend pagination UI yet.
-- `pnpm run test` (65 tests: 55 in `server/src`, 2 client schema tests, 8 shared/index) and `pnpm run typecheck` are both green — re-verified 2026-07-18.
-- **Known gotcha**: Hono's bare `.use(requireAuth)` (no path argument) did not apply to a nested dynamic route (`/:itemId/tree`) even though it worked for a root `/` route — it silently left `c.get('supabase')`/`c.get('user')` unset and crashed with a 500 instead of returning 401. Always write `.use('*', requireAuth)` explicitly in new sub-routers, and cover it with an "unauthenticated request → 401" test per route (this is what caught it).
-- **Another RLS gotcha (found 2026-07-18)**: `proposal_reviews` had RLS enabled since the initial schema migration but no policy was ever defined for it, so every insert — including from `review_proposal` itself, running as the authenticated user — was silently rejected with "new row violates row-level security policy". Fixed via `20260718000002_proposal_reviews_rls.sql`, scoped through the parent `proposals.tenant_id` since the table has no `tenant_id` column of its own. **Lesson**: `alter table ... enable row level security` with no matching `create policy` is a silent deny-all, not a no-op — grep for this pairing when adding a new table.
-- **Known local-only quirk**: after `supabase db reset`, Kong can hold a stale IP for the `auth` container and 502 until `docker restart supabase_kong_supply`. Docker DNS-caching artifact of the CLI's restart step, not application code. A second local-only quirk: the `supabase_vector_supply` container restart-loops with `Network unreachable` reaching the Docker socket (root-caused 2026-07-18 — it's Logflare's log-shipping sidecar trying to enumerate containers for its local log viewer; unrelated to Postgres/Auth/PostgREST/Kong, doesn't affect the app or the test suite, and isn't worth chasing further since it's a Windows/Docker-Desktop quirk in the Supabase CLI's own stack, not this repo).
-- Git history: schemas, auth, tenant RPC, items/BOM/inventory/production/proposals wiring, and the client are all committed — the working tree is clean (only the untracked `.claude/` dir).
+- **Auth**: `server/src/lib/supabase.ts` (`createUserClient`/`createAdminClient`) and `server/src/middleware/auth.ts` (`requireAuth`, `requirePermission`) per the Auth Architecture section above.
+- **Tenant provisioning**: `POST /api/admin/tenants` (`server/src/routes/tenants.ts`), gated by `X-Admin-Secret` and rate-limited to 3/IP/hour (`server/src/middleware/rateLimit.ts`, in-memory fixed-window). Calls `provision_tenant` (tenant + Admin role + profile + one workflow step per proposal type, one transaction), then sets `app_metadata`.
+- **Items**: full CRUD — `GET /` (paginated), `POST /`, `PATCH /:id`, `PATCH /:id/archive` — gated by `items.create`/`items.edit`/`items.archive`, RLS-scoped. Client: `ItemList.tsx` (paged table, inline edit, archive) and `ItemDetail.tsx` (`/items/:id` — full fields, edit/archive, current stock, recent stock movements, embedded BOM tree).
+- **BOM**: `GET /:itemId/tree` (recursive-CTE RPC), `POST /` (requires `bom.edit`). Two DB triggers guard integrity: `prevent_bom_cycle` (self-reference/circular) and `prevent_bom_cross_tenant` (parent/child item must belong to the BOM line's own tenant — RLS doesn't catch this since FK lookups bypass it). `BomTreeViewer.tsx` has a child-item + quantity add form.
+- **Inventory & Production**: paginated list endpoints, `/inventory/alerts` (reorder-point), `/inventory/export` and `/production/export` (CSV, gated by `inventory.export`/`production.view`), `complete_production_order`/`can_produce` RPCs — verified end-to-end for a multi-level bolt→frame→bike BOM. Client pages have paged tables + "Export CSV" buttons.
+- **Workflow & Proposals**: `server/src/routes/proposals.ts` (`GET /`, `POST /`, `POST /:id/submit`, `POST /:id/review`) backed by `submit_proposal`/`review_proposal` RPCs, which walk the tenant's `workflow_steps` chain matching the reviewer's actual `profiles.role_id` (not just the coarse `proposals.review` permission) and, on final approval of a `bom_change`, atomically apply the payload via `apply_bom_change_payload`. Client: `Proposals.tsx` — list, submit, approve/reject/request-changes; `bom_change` payloads are entered as raw JSON (no structured diff editor yet).
+- **Admin — invite user / manage roles** (closed the last Phase 1 gap): `server/src/routes/roles.ts` (list/create/edit; editing a role's permissions pushes the new snapshot to every current member's `app_metadata`, since permissions are baked into the JWT at invite time, not looked up live) and `server/src/routes/users.ts` (list, `POST /invite` via `supabase.auth.admin.inviteUserByEmail`, `PATCH /:id/role` reassignment, also syncing `app_metadata`). Client: `Admin.tsx` (`/admin`) with a `PermissionsEditor` checkbox-grid component, nav-linked only for users who actually hold `admin.manage_users`/`admin.manage_roles`.
+- **Audit logging**: a single generic trigger (`log_audit_event`, migration `20260718000003_audit_log_triggers.sql`) attached to `items`, `bom_lines`, `production_orders`, `proposals`, `roles`, `profiles` — replaced the manual `insert into audit_logs` calls that used to be scattered across RPCs, and closed a real coverage gap (items/bom_lines direct writes were never audited before). Deliberately **not** attached to `stock_ledger` or `proposal_reviews` (both are already their own append-only audit trail) or `tenants`/`workflow_steps` (service-role-created, low churn).
+- **Rate limiting / security headers**: registration (`POST /api/admin/tenants`) is rate-limited; login is not server-side rate-limited because it never touches our server — the client calls `supabase.auth.signInWithPassword` directly (see Auth Architecture), so GoTrue's own limits are what protect it. `server/src/middleware/securityHeaders.ts` sets a maximally strict CSP (JSON-only API), `X-Frame-Options`, `X-Content-Type-Options`, HSTS, `Referrer-Policy` globally, ahead of CORS.
+- **Sentry**: both sides DSN-gated and no-op cleanly when unset. Server: `@hono/sentry` (toucan-js, runs natively in the Workers isolate, no `nodejs_compat` flag needed). Client: `@sentry/react`, initialized from `VITE_SENTRY_DSN` in `main.tsx`, wrapping `<App />` in an `ErrorBoundary`.
+- **Pagination**: `items`/`production`/`inventory` list endpoints accept `?after=<uuid>&limit=<n>` (default 50, max 200), reporting a next-page cursor via `X-Next-Cursor` — remember to also add the header to `Access-Control-Expose-Headers` in `server/src/index.ts` for any new one, or browsers silently strip it (hit this exact bug adding the frontend pager). Client: `useCursorPagination` + `Pager` component wired into all three list pages; picker/lookup consumers (BOM child select, production/inventory item selects) use a separate unpaginated (up to 200) query so dropdowns still show everything.
+- **Client**: `App.tsx` — React Router v7, routes for `/items`, `/items/:id`, `/inventory`, `/production`, `/proposals`, `/admin`, all behind `ProtectedLayout`.
+- `packages/shared` schemas: items (`UpdateItemSchema`, `is_archived` on `ItemSchema`), tenants, bom, inventory, production, proposals (`BomChangePayloadSchema`, `ProposalType`/`ProposalStatus` type aliases), auth, pagination (`PaginationQuerySchema`), roles, users.
+- `pnpm run test` (76 tests: server + client + shared combined) and `pnpm run typecheck` both green — re-verified 2026-07-18, plus the live Docker smoke test above.
+- **Known gotchas**:
+  - Hono's bare `.use(requireAuth)` (no path) doesn't apply to nested dynamic routes — always `.use('*', requireAuth)`.
+  - `alter table ... enable row level security` with no matching `create policy` is a silent deny-all, not a no-op (hit this with `proposal_reviews`) — grep for this pairing whenever adding a table.
+  - **Real, still-open schema gap found via live smoke testing**: `proposal_reviews.reviewer_id` (and similarly `items.created_by`, `stock_ledger.user_id`, `production_orders.created_by`, `proposals.created_by`) reference `profiles(id)` with no `ON DELETE` behavior. A tenant that has ever had a proposal reviewed can't be cascade-deleted through `tenants` — `profiles.tenant_id`'s cascade and `proposals.tenant_id`'s cascade race as two independent paths, and the FK check on `reviewer_id` can fire before the other path removes the referencing row. `SET NULL` is probably the right fix (so historical records survive an actor's removal) but requires dropping `NOT NULL` on those columns — a real design decision, not a one-line fix. See Resume Point.
+  - `supabase db reset` can leave Kong holding a stale `auth` container IP (502 until `docker restart supabase_kong_supply`), and `supabase_vector_supply` restart-loops on `Network unreachable` (Logflare's log-shipping sidecar failing to reach the Docker socket on Windows/Docker Desktop) — neither affects Postgres/Auth/PostgREST/Kong or the app itself.
+- Git history: everything above is committed across a series of small, single-purpose commits on `master`; working tree is clean except the untracked `.claude/` dir.
 
 ### Resume Point
 
-Phases 1-5 are real, tested, and verified end-to-end through the actual Docker Compose stack — including a full multi-level BOM → stock → production-order-completion run and a full proposal submit → review → auto-apply-BOM-change run. React Router v7 landed. Docker Compose itself is fixed (working dirs, node_modules volume paths, wrangler's local SQLite state, and container→host Supabase networking all had to be corrected — see the note above).
+Phases 1-5 are done, plus most of Phase 6. What's left, in order:
 
-What's next, in order:
-
-1. **Build the proposal inbox/review UI** — `server/src/routes/proposals.ts` (submit/review/auto-apply) has no frontend yet. Add `client/src/hooks/useProposals.ts` + a page under `client/src/pages/proposals/` (list, submit button, approve/reject/request-changes form), and a nav link in `App.tsx`.
-2. **Add an item detail page** — `ItemList.tsx` covers list/inline-edit/archive, but there's no dedicated item detail view (BOM tree is reached via "View BOM" from the list, not from a detail page).
-3. **Build the invite-user / manage-roles admin UI + API** — `server/src/routes/tenants.ts` only provisions brand-new tenants. There's no `roles.ts`/`users.ts` route for inviting a user to an existing tenant or editing a role's permissions, even though `admin.manage_users`/`admin.manage_roles` are already defined in the permissions shape and provisioned for the Admin role. Deferred out of this round of work as a distinct, self-contained feature (needs its own invite-flow design — email invite vs. direct create — rather than being folded into other Phase work).
-4. **Add frontend pagination controls** for the items/production/inventory lists now that the API supports `?after=&limit=` + `X-Next-Cursor` — currently only the backend is done; the client hooks (`useItems`, `useProduction`, `useInventory`) still fetch unbounded first pages.
-5. **CSV/Excel export for inventory and production** (Phase 6 checklist).
-6. **Sentry integration (client + server)** (Phase 6 checklist).
-7. **CSP headers, security headers** (`X-Frame-Options`, `X-Content-Type-Options`) (Phase 6 checklist).
-8. **Rate limiting on auth routes** (Non-Negotiable Security Rule 6 — login 5/IP/15min, registration 3/IP/hour — not yet implemented anywhere).
-9. **Audit-log DB trigger pattern** — Non-Negotiable Security Rule 8 says "use the DB trigger pattern," but every RPC shipped so far (`complete_production_order`, `apply_bom_change_payload`, `submit_proposal`, `review_proposal`) writes to `audit_logs` manually inside the function body instead. Works today, but either update the rule to match reality or add real triggers — the doc and the code currently disagree.
-10. Re-run the full verify pass (typecheck + all tests + a live Docker E2E smoke test) after any of the above, before committing.
+1. **Decide and fix the `profiles(id)` FK cascade gap** (see Known gotchas above) — needs a real decision (`SET NULL` + drop `NOT NULL` on `created_by`/`user_id`/`reviewer_id` columns is the likely answer) rather than a rushed migration.
+2. **CSV export payload growth**: both export endpoints cap at 10k rows with no pagination — fine for SME scale today, but revisit if a tenant ever approaches that.
+3. **Structured BOM-diff editor for `bom_change` proposals** — `Proposals.tsx` currently takes the payload as raw JSON with a shape hint; a real line-item editor (mirroring `BomTreeViewer`'s add-line form) would be much friendlier.
+4. **Reconcile Non-Negotiable Security Rule 6** — it says "Login: 5 attempts per IP per 15 minutes," but login never reaches our server (see Auth Architecture), so that half of the rule can't be implemented here; update the rule's wording to describe what's actually enforced (GoTrue's own limits) rather than leaving it looking unimplemented.
+5. **CSV export UI has no loading/error state** — `downloadCsv()` just fires and forgets; a failed export currently fails silently in the browser console.
+6. **Sentry has no real DSN configured anywhere** — the integration is wired and tested to no-op safely, but nobody has actually created a Sentry project yet; do that when there's a real deployment to monitor.
+7. **`stock_ledger` audit rationale isn't written down anywhere except code comments** — worth a line in the Database Schema section above explaining why it's exempt from the generic audit trigger.
+8. Re-run the full verify pass (typecheck + all tests + a live Docker E2E smoke test) after any of the above, before committing.
 
 ---
 
@@ -64,7 +66,7 @@ What's next, in order:
 
 These are checked on every PR. No exceptions.
 
-1. **Never use the Supabase service-role key for data queries.** The service key is only for tenant provisioning (creating new tenants + users). Every data operation uses the user's JWT, so RLS enforces isolation automatically.
+1. **Never use the Supabase service-role key for data queries.** The service key is only for tenant provisioning (creating new tenants + users) and admin user-management (inviting users, reassigning roles). Every data operation uses the user's JWT, so RLS enforces isolation automatically.
 
 2. **RLS is the enforcement layer, not application code.** Always write `WHERE tenant_id = ?` in queries too, but the database rejects cross-tenant access even if the application forgets.
 
@@ -74,13 +76,13 @@ These are checked on every PR. No exceptions.
 
 5. **Validate input at the API boundary with Zod.** Import schemas from `packages/shared`. The same schema validates the frontend form and the API handler.
 
-6. **Rate-limit all auth endpoints.** Login: 5 attempts per IP per 15 minutes. Registration: 3 per IP per hour.
+6. **Rate-limit all server-side auth endpoints.** Registration (`POST /api/admin/tenants`): 3 per IP per hour — implemented (`server/src/middleware/rateLimit.ts`). Login is *not* implemented here because it never reaches our server: the client calls `supabase.auth.signInWithPassword` directly (see Auth Architecture), so Supabase Auth's (GoTrue's) own rate limits are what actually protect it.
 
-7. **Permissions are in `app_metadata` (set server-side only).** Never trust client-supplied role/permission claims.
+7. **Permissions are in `app_metadata` (set server-side only).** Never trust client-supplied role/permission claims. When a role's permissions change, push the new snapshot to every current holder's `app_metadata` (see `roles.ts`) — don't just apply it to new invites.
 
-8. **Audit every mutation.** Every route that changes data writes to `audit_logs`. Use the DB trigger pattern — do not rely on application code to remember.
+8. **Audit every mutation via a DB trigger, not application code.** Implemented as a single generic trigger (`log_audit_event`) attached to every actively-mutated business table (`items`, `bom_lines`, `production_orders`, `proposals`, `roles`, `profiles`) — see migration `20260718000003_audit_log_triggers.sql`. Exceptions: `stock_ledger` and `proposal_reviews` are already their own append-only audit trail, so a redundant audit_logs entry would just double-book the same fact; `tenants`/`workflow_steps` are service-role-created bootstrapping config.
 
-9. **No wildcard CORS.** The allowlist is explicit: `[APP_ORIGIN, ADMIN_ORIGIN]`. Reject unknown origins with 403.
+9. **No wildcard CORS.** The allowlist is explicit: `[APP_ORIGIN, ADMIN_ORIGIN]`. Reject unknown origins with 403. Any new custom response header (e.g. `X-Next-Cursor`) must also be added to `Access-Control-Expose-Headers` or browsers silently strip it client-side.
 
 10. **Never log passwords, tokens, or PII.** Structured logs contain request ID, user ID, tenant ID, action — never sensitive values.
 
@@ -716,13 +718,13 @@ Build strictly in this sequence. Each phase must be fully working before startin
 - [x] Tenant provisioning RPC + admin endpoint
 - [x] `requireAuth` + `requirePermission` middleware
 - [x] Login page, auth context, protected routes
-- [ ] Admin: create tenant, invite user, manage roles — tenant creation only; no `roles.ts`/`users.ts` API for invite-user or manage-roles yet
+- [x] Admin: create tenant, invite user, manage roles — `server/src/routes/roles.ts` + `server/src/routes/users.ts`, `client/src/pages/admin/Admin.tsx`
 
 ### Phase 2 — Item Catalog
 - [x] Schema: `items`, `bom_lines`
 - [x] API: CRUD for items, BOM line management — items has `GET`/`POST`/`PATCH :id`/`PATCH :id/archive`; BOM has `GET tree`/`POST` (line edit/delete is only reachable indirectly via an approved `bom_change` proposal, not a direct BOM API — acceptable for now, revisit if a direct-edit need shows up)
 - [x] BOM circular reference prevention (DB trigger + app check)
-- [ ] Frontend: item list, item detail, BOM tree viewer — item list (with inline edit/archive) and BOM tree viewer (with line-add form) exist; no dedicated item detail page (see Resume Point item 2)
+- [x] Frontend: item list, item detail, BOM tree viewer — `ItemList.tsx` (paged, inline edit/archive), `ItemDetail.tsx` (`/items/:id`), `BomTreeViewer.tsx` (with line-add form)
 - [x] BOM explorer showing full recursive tree (use PostgreSQL CTE for recursion)
 
 ### Phase 3 — Inventory
@@ -743,15 +745,15 @@ Build strictly in this sequence. Each phase must be fully working before startin
 - [x] Per-tenant workflow step configuration (seeded 1-step-per-type by `provision_tenant`; `review_proposal` walks it)
 - [x] API: submit proposal, route to next approver, approve/reject (`server/src/routes/proposals.ts`)
 - [x] Auto-apply approved BOM change proposals via RPC (`apply_bom_change_payload`, called from `review_proposal` on final approval)
-- [ ] Frontend: proposal inbox, review UI, proposal history — API-only so far, no UI (see Resume Point item 1)
+- [x] Frontend: proposal inbox, review UI, proposal history — `client/src/pages/proposals/Proposals.tsx`
 
 ### Phase 6 — Polish & Production-Readiness
-- [x] Pagination on all list endpoints (cursor-based: `?after=<uuid>&limit=50`) — backend done (items/production/inventory, via `X-Next-Cursor`); no frontend pagination controls yet (see Resume Point item 4)
-- [ ] CSV/Excel export for inventory and production
-- [ ] Sentry integration (client + server)
-- [ ] Rate limiting on auth routes
-- [ ] CSP headers, security headers (`X-Frame-Options`, `X-Content-Type-Options`)
-- [x] Integration tests for: tenant isolation, production order completion, approval flow — tenant isolation covered on items/bom/inventory/production/proposals; production completion and the full proposal approval flow both have dedicated tests
+- [x] Pagination on all list endpoints (cursor-based: `?after=<uuid>&limit=50`) — both backend (items/production/inventory, via `X-Next-Cursor`) and frontend (`useCursorPagination` + `Pager` on all three list pages)
+- [x] CSV/Excel export for inventory and production — CSV only (`GET /api/inventory/export`, `GET /api/production/export`), not Excel/.xlsx; reasonable scope cut since CSV opens fine in Excel and avoids a new dependency
+- [x] Sentry integration (client + server) — wired and DSN-gated on both sides; no real Sentry project/DSN configured yet (see Resume Point)
+- [x] Rate limiting on auth routes — registration only; login can't be rate-limited server-side since it never reaches our server (see Non-Negotiable Security Rule 6)
+- [x] CSP headers, security headers (`X-Frame-Options`, `X-Content-Type-Options`) — `server/src/middleware/securityHeaders.ts`, applied globally ahead of CORS
+- [x] Integration tests for: tenant isolation, production order completion, approval flow — tenant isolation covered on items/bom/inventory/production/proposals/roles/users; production completion and the full proposal approval flow both have dedicated tests
 
 ---
 
@@ -906,4 +908,4 @@ $$;
 
 ---
 
-*Last updated: 2026-07-18 (Phase 2 completion — item edit/archive, BOM line form, pagination, BOM cross-tenant trigger — and Phase 5 workflow/proposals shipped and verified; Current Development Snapshot, Resume Point, and Feature Build Order checklists reconciled against actual code). Update this document whenever an architectural decision changes.*
+*Last updated: 2026-07-18 (invite-user/manage-roles admin, proposal inbox UI, item detail page, frontend pagination, CSV export, Sentry, generic audit triggers, and auth-endpoint rate limiting all shipped and verified via a live Docker E2E smoke test; Current Development Snapshot, Resume Point, Non-Negotiable Security Rules, and Feature Build Order checklists reconciled against actual code). Update this document whenever an architectural decision changes.*
