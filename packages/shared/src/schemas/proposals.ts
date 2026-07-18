@@ -18,6 +18,10 @@ export const ProposalReviewActionSchema = z.enum([
   'requested_changes',
 ]);
 
+export type ProposalType = z.infer<typeof ProposalTypeSchema>;
+export type ProposalStatus = z.infer<typeof ProposalStatusSchema>;
+export type ProposalReviewAction = z.infer<typeof ProposalReviewActionSchema>;
+
 export const CreateProposalSchema = z.object({
   type: ProposalTypeSchema,
   title: z.string().min(1).max(200),

@@ -14,6 +14,7 @@ import Login from './pages/Login';
 import ItemList from './pages/items/ItemList';
 import StockDashboard from './pages/inventory/StockDashboard';
 import ProductionOrders from './pages/production/ProductionOrders';
+import Proposals from './pages/proposals/Proposals';
 import Admin from './pages/admin/Admin';
 
 const queryClient = new QueryClient();
@@ -55,6 +56,9 @@ function ProtectedLayout() {
           <NavLink to="/production" style={navLinkStyle}>
             Production
           </NavLink>
+          <NavLink to="/proposals" style={navLinkStyle}>
+            Proposals
+          </NavLink>
           {(canManageUsers || canManageRoles) && (
             <NavLink to="/admin" style={navLinkStyle}>
               Admin
@@ -85,6 +89,7 @@ function AppRoutes() {
         <Route path="/items" element={<ItemList />} />
         <Route path="/inventory" element={<StockDashboard />} />
         <Route path="/production" element={<ProductionOrders />} />
+        <Route path="/proposals" element={<Proposals />} />
         <Route path="/admin" element={<Admin />} />
       </Route>
       <Route path="*" element={<Navigate to="/items" replace />} />
