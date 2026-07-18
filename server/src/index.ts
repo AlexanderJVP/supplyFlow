@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { sentry } from '@hono/sentry';
 
 import { securityHeaders } from './middleware/securityHeaders';
 import { itemsRouter } from './routes/items';
@@ -12,6 +13,10 @@ import { usersRouter } from './routes/users';
 import type { AppEnv } from './types';
 
 const app = new Hono<AppEnv>();
+
+// Reads SENTRY_DSN from the request's env bindings itself and no-ops when
+// it's unset, so local dev / tests work unchanged without a real DSN.
+app.use('*', sentry());
 
 app.use('*', securityHeaders);
 

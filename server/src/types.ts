@@ -9,6 +9,9 @@ export type AppEnv = {
     ALLOWED_ORIGIN: string;
     ADMIN_ORIGIN: string;
     ADMIN_SECRET: string;
+    // Optional -- @hono/sentry no-ops (via toucan-js) when this is unset, so
+    // local dev works fine without a real Sentry project.
+    SENTRY_DSN?: string;
   };
   Variables: {
     user: UserClaims;

@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@hono/sentry": "^1.2.2",
     "@hono/zod-validator": "^0.2.2",
     "@manufacturing/shared": "workspace:*",
     "@supabase/supabase-js": "^2.45.0",
