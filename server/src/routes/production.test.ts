@@ -425,6 +425,51 @@ describe('production routes (integration, requires local Supabase)', () => {
     expect(firstPageResponse.headers.get('X-Next-Cursor')).toBeTruthy();
   });
 
+  it('exports production orders as CSV with item names resolved and a downloadable filename', async () => {
+    const item = await createItem(tenantA.accessToken, {
+      name: 'CSV Bike',
+      type: 'finished_good',
+    });
+    await createProductionOrder(tenantA.accessToken, item.id, 3);
+
+    const response = await app.fetch(
+      new Request('http://localhost/api/production/export', {
+        headers: { Authorization: `Bearer ${tenantA.accessToken}` },
+      }),
+      integrationEnv
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Type')).toContain('text/csv');
+    expect(response.headers.get('Content-Disposition')).toContain(
+      'production.csv'
+    );
+
+    const csv = await response.text();
+    expect(csv.split('\r\n')[0]).toBe(
+      'sku,name,quantity,status,created_at,completed_at'
+    );
+    expect(csv).toContain(`${item.sku},CSV Bike,3,draft,`);
+  });
+
+  it('rejects the export for a caller without production.view permission', async () => {
+    const restricted = await createRestrictedUser(tenantA.tenant_id, {
+      ...NO_PERMISSIONS,
+      production: {
+        view: false,
+        create: false,
+        complete: false,
+        cancel: false,
+      },
+    });
+    const response = await app.fetch(
+      new Request('http://localhost/api/production/export', {
+        headers: { Authorization: `Bearer ${restricted.accessToken}` },
+      }),
+      integrationEnv
+    );
+    expect(response.status).toBe(403);
+  });
+
   it('isolates production orders by tenant (RLS tenant isolation)', async () => {
     const item = await createItem(tenantA.accessToken, {
       name: 'Tenant Isolated Production Item',

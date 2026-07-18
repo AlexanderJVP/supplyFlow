@@ -5,6 +5,7 @@ import {
   AdjustStockSchema,
   PaginationQuerySchema,
 } from '@manufacturing/shared';
+import { toCsv } from '../lib/csv';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import type { AppEnv } from '../types';
 
@@ -110,6 +111,58 @@ inventoryRouter.get(
       .filter((alert) => alert.quantity < alert.reorder_point);
 
     return c.json(alerts);
+  }
+);
+
+inventoryRouter.get(
+  '/export',
+  requirePermission('inventory.export'),
+  async (c) => {
+    const user = c.get('user');
+    const supabase = c.get('supabase');
+
+    const [itemsResult, stockResult] = await Promise.all([
+      supabase
+        .from('items')
+        .select('id, sku, name, unit_of_measure, reorder_point')
+        .eq('tenant_id', user.tenantId)
+        .eq('is_archived', false)
+        .order('sku')
+        .limit(10000),
+      supabase
+        .from('current_stock')
+        .select('item_id, quantity')
+        .eq('tenant_id', user.tenantId),
+    ]);
+
+    if (itemsResult.error)
+      return c.json({ error: itemsResult.error.message }, 500);
+    if (stockResult.error)
+      return c.json({ error: stockResult.error.message }, 500);
+
+    const quantityByItem = new Map(
+      stockResult.data.map((row) => [row.item_id, row.quantity])
+    );
+
+    const rows = itemsResult.data.map((item) => ({
+      sku: item.sku,
+      name: item.name,
+      unit_of_measure: item.unit_of_measure,
+      quantity: quantityByItem.get(item.id) ?? 0,
+      reorder_point: item.reorder_point ?? '',
+    }));
+
+    const csv = toCsv(rows, [
+      'sku',
+      'name',
+      'unit_of_measure',
+      'quantity',
+      'reorder_point',
+    ]);
+
+    c.header('Content-Type', 'text/csv; charset=utf-8');
+    c.header('Content-Disposition', 'attachment; filename="inventory.csv"');
+    return c.body(csv);
   }
 );
 

@@ -61,6 +61,15 @@ async function getAlerts(accessToken: string) {
   );
 }
 
+async function getExport(accessToken: string) {
+  return app.fetch(
+    new Request('http://localhost/api/inventory/export', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }),
+    integrationEnv
+  );
+}
+
 describe('inventory routes (integration, requires local Supabase)', () => {
   let tenantA: TestTenant;
   let tenantB: TestTenant;
@@ -222,6 +231,35 @@ describe('inventory routes (integration, requires local Supabase)', () => {
     }>;
     expect(firstPage).toHaveLength(2);
     expect(firstPageResponse.headers.get('X-Next-Cursor')).toBeTruthy();
+  });
+
+  it('exports current stock as CSV with a downloadable filename', async () => {
+    const item = await createItem(tenantA.accessToken, { name: 'CSV Widget' });
+    expect(
+      (await adjustStock(tenantA.accessToken, item.id, 42, 'received')).status
+    ).toBe(201);
+
+    const response = await getExport(tenantA.accessToken);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Type')).toContain('text/csv');
+    expect(response.headers.get('Content-Disposition')).toContain(
+      'inventory.csv'
+    );
+
+    const csv = await response.text();
+    expect(csv.split('\r\n')[0]).toBe(
+      'sku,name,unit_of_measure,quantity,reorder_point'
+    );
+    expect(csv).toContain(`${item.sku},CSV Widget,each,42,`);
+  });
+
+  it('rejects the export for a caller without inventory.export permission', async () => {
+    const restricted = await createRestrictedUser(
+      tenantA.tenant_id,
+      NO_PERMISSIONS
+    );
+    const response = await getExport(restricted.accessToken);
+    expect(response.status).toBe(403);
   });
 
   it('isolates current stock and history by tenant (RLS tenant isolation)', async () => {

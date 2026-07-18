@@ -3,6 +3,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import Pager from '../../components/Pager';
 import { useCursorPagination } from '../../hooks/useCursorPagination';
 import { useItems } from '../../hooks/useItems';
+import { usePermission } from '../../hooks/usePermission';
 import {
   useCanProduce,
   useCancelProductionOrder,
@@ -11,12 +12,14 @@ import {
   useProductionOrdersPage,
   useStartProductionOrder,
 } from '../../hooks/useProduction';
+import { downloadCsv } from '../../lib/downloadCsv';
 
 export default function ProductionOrders() {
   const { data: items } = useItems();
   const pagination = useCursorPagination();
   const { data, isLoading, error } = useProductionOrdersPage(pagination.after);
   const orders = data?.orders;
+  const canExport = usePermission('production.view');
 
   const createOrder = useCreateProductionOrder();
   const startOrder = useStartProductionOrder();
@@ -58,7 +61,22 @@ export default function ProductionOrders() {
 
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', padding: 24 }}>
-      <h1>Production Orders</h1>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+        }}
+      >
+        <h1>Production Orders</h1>
+        {canExport && (
+          <button
+            onClick={() => downloadCsv('/production/export', 'production.csv')}
+          >
+            Export CSV
+          </button>
+        )}
+      </div>
 
       {isLoading && <p>Loading…</p>}
       {error && (

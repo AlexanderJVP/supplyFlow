@@ -7,6 +7,8 @@ import {
   useCurrentStock,
   useCurrentStockPage,
 } from '../../hooks/useInventory';
+import { usePermission } from '../../hooks/usePermission';
+import { downloadCsv } from '../../lib/downloadCsv';
 import MovementHistory from './MovementHistory';
 
 const LEDGER_REASONS = [
@@ -27,6 +29,7 @@ export default function StockDashboard() {
   // picker below always lists every item, not just the current table page.
   const { data: allStock } = useCurrentStock();
   const adjustStock = useAdjustStock();
+  const canExport = usePermission('inventory.export');
 
   const [historyItem, setHistoryItem] = useState<{
     id: string;
@@ -66,7 +69,22 @@ export default function StockDashboard() {
 
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', padding: 24 }}>
-      <h1>Inventory</h1>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+        }}
+      >
+        <h1>Inventory</h1>
+        {canExport && (
+          <button
+            onClick={() => downloadCsv('/inventory/export', 'inventory.csv')}
+          >
+            Export CSV
+          </button>
+        )}
+      </div>
 
       {isLoading && <p>Loading…</p>}
       {error && <p style={{ color: 'red' }}>Failed to load stock levels.</p>}

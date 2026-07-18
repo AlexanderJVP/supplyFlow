@@ -6,6 +6,7 @@ import {
   CreateProductionOrderSchema,
   PaginationQuerySchema,
 } from '@manufacturing/shared';
+import { toCsv } from '../lib/csv';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import type { AppEnv } from '../types';
 
@@ -36,6 +37,57 @@ productionRouter.get(
       c.header('X-Next-Cursor', data[data.length - 1].id as string);
     }
     return c.json(data);
+  }
+);
+
+productionRouter.get(
+  '/export',
+  requirePermission('production.view'),
+  async (c) => {
+    const user = c.get('user');
+    const supabase = c.get('supabase');
+
+    const [ordersResult, itemsResult] = await Promise.all([
+      supabase
+        .from('production_orders')
+        .select('id, item_id, quantity, status, created_at, completed_at')
+        .eq('tenant_id', user.tenantId)
+        .order('created_at', { ascending: false })
+        .limit(10000),
+      supabase
+        .from('items')
+        .select('id, sku, name')
+        .eq('tenant_id', user.tenantId),
+    ]);
+
+    if (ordersResult.error)
+      return c.json({ error: ordersResult.error.message }, 500);
+    if (itemsResult.error)
+      return c.json({ error: itemsResult.error.message }, 500);
+
+    const itemById = new Map(itemsResult.data.map((item) => [item.id, item]));
+
+    const rows = ordersResult.data.map((order) => ({
+      sku: itemById.get(order.item_id)?.sku ?? order.item_id,
+      name: itemById.get(order.item_id)?.name ?? '',
+      quantity: order.quantity,
+      status: order.status,
+      created_at: order.created_at,
+      completed_at: order.completed_at ?? '',
+    }));
+
+    const csv = toCsv(rows, [
+      'sku',
+      'name',
+      'quantity',
+      'status',
+      'created_at',
+      'completed_at',
+    ]);
+
+    c.header('Content-Type', 'text/csv; charset=utf-8');
+    c.header('Content-Disposition', 'attachment; filename="production.csv"');
+    return c.body(csv);
   }
 );
 
