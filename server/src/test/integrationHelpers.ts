@@ -39,6 +39,15 @@ export function uniqueSlug(prefix: string) {
   return `${prefix}-${Date.now()}-${counter}`.toLowerCase();
 }
 
+// Each call simulates a different client IP so tests that provision many
+// tenants don't collide with the rate limit on POST /api/admin/tenants
+// (3/IP/hour) -- see server/src/middleware/rateLimit.ts.
+let ipCounter = 0;
+function nextTestIp() {
+  ipCounter += 1;
+  return `10.0.${(ipCounter >> 8) & 255}.${ipCounter & 255}`;
+}
+
 export const NO_PERMISSIONS: Permissions = {
   items: { view: true, create: false, edit: false, archive: false },
   bom: { view: true, edit: false },
@@ -80,6 +89,7 @@ export async function provisionTestTenant(prefix: string): Promise<TestTenant> {
       headers: {
         'Content-Type': 'application/json',
         'X-Admin-Secret': integrationEnv.ADMIN_SECRET,
+        'CF-Connecting-IP': nextTestIp(),
       },
       body: JSON.stringify({
         name: `Test Co ${slug}`,
@@ -113,6 +123,29 @@ export async function provisionTestTenant(prefix: string): Promise<TestTenant> {
 export async function cleanupTenant(tenantId: string, adminUserId: string) {
   await adminClient.from('tenants').delete().eq('id', tenantId);
   await adminClient.auth.admin.deleteUser(adminUserId);
+}
+
+// Reads via the service-role client for test assertions only -- there is no
+// user-facing API for audit_logs, so this deliberately bypasses RLS.
+export async function getAuditLogs(
+  tenantId: string,
+  tableName: string,
+  recordId: string
+) {
+  const { data, error } = await adminClient
+    .from('audit_logs')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .eq('table_name', tableName)
+    .eq('record_id', recordId)
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(`Failed to read audit_logs: ${error.message}`);
+  return data as Array<{
+    action: string;
+    old_data: unknown;
+    new_data: unknown;
+    user_id: string | null;
+  }>;
 }
 
 export async function createRestrictedUser(

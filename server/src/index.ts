@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 
+import { securityHeaders } from './middleware/securityHeaders';
 import { itemsRouter } from './routes/items';
 import { bomRouter } from './routes/bom';
 import { inventoryRouter } from './routes/inventory';
@@ -9,6 +10,8 @@ import { tenantsRouter } from './routes/tenants';
 import type { AppEnv } from './types';
 
 const app = new Hono<AppEnv>();
+
+app.use('*', securityHeaders);
 
 app.use('*', async (c, next) => {
   const origin = c.req.header('Origin');

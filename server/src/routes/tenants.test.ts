@@ -32,7 +32,10 @@ describe('POST /api/admin/tenants (integration, requires local Supabase)', () =>
     const noHeader = await app.fetch(
       new Request('http://localhost/api/admin/tenants', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'CF-Connecting-IP': '10.1.0.1',
+        },
         body,
       }),
       integrationEnv
@@ -45,6 +48,7 @@ describe('POST /api/admin/tenants (integration, requires local Supabase)', () =>
         headers: {
           'Content-Type': 'application/json',
           'X-Admin-Secret': 'not-the-real-secret',
+          'CF-Connecting-IP': '10.1.0.2',
         },
         body,
       }),
@@ -60,6 +64,7 @@ describe('POST /api/admin/tenants (integration, requires local Supabase)', () =>
         headers: {
           'Content-Type': 'application/json',
           'X-Admin-Secret': integrationEnv.ADMIN_SECRET,
+          'CF-Connecting-IP': '10.1.0.3',
         },
         body: JSON.stringify({
           name: '',
@@ -72,6 +77,45 @@ describe('POST /api/admin/tenants (integration, requires local Supabase)', () =>
       integrationEnv
     );
     expect(response.status).toBe(400);
+  });
+
+  it('rate-limits tenant creation to 3 attempts per IP per hour', async () => {
+    const ip = '10.1.0.99';
+    const attempt = () => {
+      const slug = uniqueSlug('ratelimit');
+      return app.fetch(
+        new Request('http://localhost/api/admin/tenants', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Secret': integrationEnv.ADMIN_SECRET,
+            'CF-Connecting-IP': ip,
+          },
+          body: JSON.stringify({
+            name: `Ratelimit Co ${slug}`,
+            slug,
+            admin_email: `${slug}@example.test`,
+            admin_password: 'Test1234!',
+            admin_name: 'Admin',
+          }),
+        }),
+        integrationEnv
+      );
+    };
+
+    for (let i = 0; i < 3; i += 1) {
+      const response = await attempt();
+      expect(response.status).toBe(201);
+      const body = (await response.json()) as {
+        tenant_id: string;
+        admin_user_id: string;
+      };
+      cleanups.push(() => cleanupTenant(body.tenant_id, body.admin_user_id));
+    }
+
+    const fourth = await attempt();
+    expect(fourth.status).toBe(429);
+    expect(fourth.headers.get('Retry-After')).toBeTruthy();
   });
 
   it('provisions a tenant, Admin role, profile, and workflow steps atomically, and bakes claims into the JWT', async () => {
@@ -106,6 +150,7 @@ describe('POST /api/admin/tenants (integration, requires local Supabase)', () =>
         headers: {
           'Content-Type': 'application/json',
           'X-Admin-Secret': integrationEnv.ADMIN_SECRET,
+          'CF-Connecting-IP': '10.1.0.4',
         },
         body: JSON.stringify({
           name: 'Duplicate Co',
