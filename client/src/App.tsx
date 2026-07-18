@@ -9,10 +9,12 @@ import {
 } from 'react-router-dom';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { usePermission } from './hooks/usePermission';
 import Login from './pages/Login';
 import ItemList from './pages/items/ItemList';
 import StockDashboard from './pages/inventory/StockDashboard';
 import ProductionOrders from './pages/production/ProductionOrders';
+import Admin from './pages/admin/Admin';
 
 const queryClient = new QueryClient();
 
@@ -26,6 +28,8 @@ function navLinkStyle({ isActive }: { isActive: boolean }) {
 
 function ProtectedLayout() {
   const { session, loading, signOut } = useAuth();
+  const canManageUsers = usePermission('admin.manage_users');
+  const canManageRoles = usePermission('admin.manage_roles');
 
   if (loading) return <p style={{ padding: 24 }}>Loading…</p>;
   if (!session) return <Navigate to="/login" replace />;
@@ -51,6 +55,11 @@ function ProtectedLayout() {
           <NavLink to="/production" style={navLinkStyle}>
             Production
           </NavLink>
+          {(canManageUsers || canManageRoles) && (
+            <NavLink to="/admin" style={navLinkStyle}>
+              Admin
+            </NavLink>
+          )}
         </div>
         <button onClick={signOut}>Sign out</button>
       </nav>
@@ -76,6 +85,7 @@ function AppRoutes() {
         <Route path="/items" element={<ItemList />} />
         <Route path="/inventory" element={<StockDashboard />} />
         <Route path="/production" element={<ProductionOrders />} />
+        <Route path="/admin" element={<Admin />} />
       </Route>
       <Route path="*" element={<Navigate to="/items" replace />} />
     </Routes>

@@ -203,6 +203,55 @@ export async function createRestrictedUser(
   return { userId: created.user.id, accessToken, roleId: role.id as string };
 }
 
+// Like createRestrictedUser, but joins an already-existing role instead of
+// creating a new one -- used to test that editing a role's permissions (or
+// reassigning a user to a different role) actually takes effect for that
+// user on their next sign-in.
+export async function createUserForRole(
+  tenantId: string,
+  roleId: string,
+  permissions: Permissions
+) {
+  const slug = uniqueSlug('role-member');
+  const email = `${slug}@example.test`;
+  const password = 'Test1234!';
+
+  const { data: created, error: createUserError } =
+    await adminClient.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
+  if (createUserError || !created.user) {
+    throw new Error(
+      `Failed to create role-member user: ${createUserError?.message}`
+    );
+  }
+
+  const { error: profileError } = await adminClient.from('profiles').insert({
+    id: created.user.id,
+    tenant_id: tenantId,
+    name: 'Role Member',
+    role_id: roleId,
+  });
+  if (profileError) {
+    throw new Error(
+      `Failed to create role-member profile: ${profileError.message}`
+    );
+  }
+
+  const { error: updateError } = await adminClient.auth.admin.updateUserById(
+    created.user.id,
+    { app_metadata: { tenant_id: tenantId, role_id: roleId, permissions } }
+  );
+  if (updateError) {
+    throw new Error(`Failed to set app_metadata: ${updateError.message}`);
+  }
+
+  const accessToken = await signIn(email, password);
+  return { userId: created.user.id, accessToken, email, password };
+}
+
 export async function createItem(
   accessToken: string,
   overrides: Partial<{

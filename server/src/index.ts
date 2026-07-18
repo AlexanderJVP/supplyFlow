@@ -6,7 +6,9 @@ import { bomRouter } from './routes/bom';
 import { inventoryRouter } from './routes/inventory';
 import { productionRouter } from './routes/production';
 import { proposalsRouter } from './routes/proposals';
+import { rolesRouter } from './routes/roles';
 import { tenantsRouter } from './routes/tenants';
+import { usersRouter } from './routes/users';
 import type { AppEnv } from './types';
 
 const app = new Hono<AppEnv>();
@@ -42,6 +44,8 @@ app.route('/api/bom', bomRouter);
 app.route('/api/inventory', inventoryRouter);
 app.route('/api/production', productionRouter);
 app.route('/api/proposals', proposalsRouter);
+app.route('/api/roles', rolesRouter);
+app.route('/api/users', usersRouter);
 app.route('/api/admin/tenants', tenantsRouter);
 
 app.get('/api/health', (c) =>

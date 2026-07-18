@@ -6,3 +6,5 @@ export * from './schemas/production';
 export * from './schemas/proposals';
 export * from './schemas/auth';
 export * from './schemas/pagination';
+export * from './schemas/roles';
+export * from './schemas/users';
