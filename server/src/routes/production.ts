@@ -4,6 +4,7 @@ import { zValidator } from '@hono/zod-validator';
 import {
   CanProduceQuerySchema,
   CreateProductionOrderSchema,
+  PaginationQuerySchema,
 } from '@manufacturing/shared';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import type { AppEnv } from '../types';
@@ -11,17 +12,32 @@ import type { AppEnv } from '../types';
 export const productionRouter = new Hono<AppEnv>();
 productionRouter.use('*', requireAuth);
 
-productionRouter.get('/', requirePermission('production.view'), async (c) => {
-  const { data, error } = await c
-    .get('supabase')
-    .from('production_orders')
-    .select('*')
-    .eq('tenant_id', c.get('user').tenantId)
-    .order('created_at', { ascending: false });
+productionRouter.get(
+  '/',
+  requirePermission('production.view'),
+  zValidator('query', PaginationQuerySchema),
+  async (c) => {
+    const { after, limit } = c.req.valid('query');
 
-  if (error) return c.json({ error: error.message }, 500);
-  return c.json(data);
-});
+    let query = c
+      .get('supabase')
+      .from('production_orders')
+      .select('*')
+      .eq('tenant_id', c.get('user').tenantId)
+      .order('id', { ascending: true })
+      .limit(limit);
+
+    if (after) query = query.gt('id', after);
+
+    const { data, error } = await query;
+
+    if (error) return c.json({ error: error.message }, 500);
+    if (data.length === limit) {
+      c.header('X-Next-Cursor', data[data.length - 1].id as string);
+    }
+    return c.json(data);
+  }
+);
 
 productionRouter.get(
   '/can-produce',

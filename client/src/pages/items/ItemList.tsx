@@ -1,15 +1,70 @@
 import { useState, type FormEvent } from 'react';
-import type { ItemType } from '@manufacturing/shared';
+import type { Item, ItemType } from '@manufacturing/shared';
 
-import { useCreateItem, useItems } from '../../hooks/useItems';
+import {
+  useArchiveItem,
+  useCreateItem,
+  useItems,
+  useUpdateItem,
+} from '../../hooks/useItems';
+import { usePermission } from '../../hooks/usePermission';
 import BomTreeViewer from '../bom/BomTreeViewer';
 
 const ITEM_TYPES: ItemType[] = ['component', 'sub_assembly', 'finished_good'];
 
+function EditItemRow({ item, onDone }: { item: Item; onDone: () => void }) {
+  const updateItem = useUpdateItem();
+  const [name, setName] = useState(item.name);
+  const [unitOfMeasure, setUnitOfMeasure] = useState(item.unit_of_measure);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      await updateItem.mutateAsync({
+        id: item.id,
+        data: { name: name.trim(), unit_of_measure: unitOfMeasure.trim() },
+      });
+      onDone();
+    } catch {
+      setError('Failed to save changes.');
+    }
+  }
+
+  return (
+    <tr>
+      <td colSpan={5}>
+        <form
+          onSubmit={handleSave}
+          style={{ display: 'flex', gap: 8, alignItems: 'center' }}
+        >
+          <input value={name} onChange={(e) => setName(e.target.value)} />
+          <input
+            value={unitOfMeasure}
+            onChange={(e) => setUnitOfMeasure(e.target.value)}
+          />
+          <button type="submit" disabled={updateItem.isPending}>
+            {updateItem.isPending ? 'Saving…' : 'Save'}
+          </button>
+          <button type="button" onClick={onDone}>
+            Cancel
+          </button>
+          {error && <span style={{ color: 'red' }}>{error}</span>}
+        </form>
+      </td>
+    </tr>
+  );
+}
+
 export default function ItemList() {
   const { data: items, isLoading, error } = useItems();
   const createItem = useCreateItem();
+  const archiveItem = useArchiveItem();
+  const canEdit = usePermission('items.edit');
+  const canArchive = usePermission('items.archive');
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
   const [sku, setSku] = useState('');
   const [name, setName] = useState('');
@@ -62,19 +117,40 @@ export default function ItemList() {
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => (
-              <tr key={item.id}>
-                <td>{item.sku}</td>
-                <td>{item.name}</td>
-                <td>{item.type}</td>
-                <td>{item.unit_of_measure}</td>
-                <td>
-                  <button onClick={() => setSelectedItemId(item.id)}>
-                    View BOM
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {items.map((item) =>
+              editingItemId === item.id ? (
+                <EditItemRow
+                  key={item.id}
+                  item={item}
+                  onDone={() => setEditingItemId(null)}
+                />
+              ) : (
+                <tr key={item.id}>
+                  <td>{item.sku}</td>
+                  <td>{item.name}</td>
+                  <td>{item.type}</td>
+                  <td>{item.unit_of_measure}</td>
+                  <td style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setSelectedItemId(item.id)}>
+                      View BOM
+                    </button>
+                    {canEdit && (
+                      <button onClick={() => setEditingItemId(item.id)}>
+                        Edit
+                      </button>
+                    )}
+                    {canArchive && (
+                      <button
+                        disabled={archiveItem.isPending}
+                        onClick={() => archiveItem.mutate(item.id)}
+                      >
+                        Archive
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              )
+            )}
           </tbody>
         </table>
       )}

@@ -5,3 +5,4 @@ export * from './schemas/inventory';
 export * from './schemas/production';
 export * from './schemas/proposals';
 export * from './schemas/auth';
+export * from './schemas/pagination';

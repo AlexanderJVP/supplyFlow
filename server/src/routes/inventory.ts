@@ -1,50 +1,69 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 
-import { AdjustStockSchema } from '@manufacturing/shared';
+import {
+  AdjustStockSchema,
+  PaginationQuerySchema,
+} from '@manufacturing/shared';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import type { AppEnv } from '../types';
 
 export const inventoryRouter = new Hono<AppEnv>();
 inventoryRouter.use('*', requireAuth);
 
-inventoryRouter.get('/', requirePermission('inventory.view'), async (c) => {
-  const user = c.get('user');
-  const supabase = c.get('supabase');
+inventoryRouter.get(
+  '/',
+  requirePermission('inventory.view'),
+  zValidator('query', PaginationQuerySchema),
+  async (c) => {
+    const user = c.get('user');
+    const supabase = c.get('supabase');
+    const { after, limit } = c.req.valid('query');
 
-  const [itemsResult, stockResult] = await Promise.all([
-    supabase
+    let itemsQuery = supabase
       .from('items')
       .select('id, sku, name, unit_of_measure, reorder_point')
       .eq('tenant_id', user.tenantId)
       .eq('is_archived', false)
-      .order('name'),
-    supabase
-      .from('current_stock')
-      .select('item_id, quantity')
-      .eq('tenant_id', user.tenantId),
-  ]);
+      .order('id', { ascending: true })
+      .limit(limit);
+    if (after) itemsQuery = itemsQuery.gt('id', after);
 
-  if (itemsResult.error)
-    return c.json({ error: itemsResult.error.message }, 500);
-  if (stockResult.error)
-    return c.json({ error: stockResult.error.message }, 500);
+    const [itemsResult, stockResult] = await Promise.all([
+      itemsQuery,
+      supabase
+        .from('current_stock')
+        .select('item_id, quantity')
+        .eq('tenant_id', user.tenantId),
+    ]);
 
-  const quantityByItem = new Map(
-    stockResult.data.map((row) => [row.item_id, row.quantity])
-  );
+    if (itemsResult.error)
+      return c.json({ error: itemsResult.error.message }, 500);
+    if (stockResult.error)
+      return c.json({ error: stockResult.error.message }, 500);
 
-  const stockWithItems = itemsResult.data.map((item) => ({
-    item_id: item.id,
-    sku: item.sku,
-    name: item.name,
-    unit_of_measure: item.unit_of_measure,
-    reorder_point: item.reorder_point,
-    quantity: quantityByItem.get(item.id) ?? 0,
-  }));
+    const quantityByItem = new Map(
+      stockResult.data.map((row) => [row.item_id, row.quantity])
+    );
 
-  return c.json(stockWithItems);
-});
+    const stockWithItems = itemsResult.data.map((item) => ({
+      item_id: item.id,
+      sku: item.sku,
+      name: item.name,
+      unit_of_measure: item.unit_of_measure,
+      reorder_point: item.reorder_point,
+      quantity: quantityByItem.get(item.id) ?? 0,
+    }));
+
+    if (itemsResult.data.length === limit) {
+      c.header(
+        'X-Next-Cursor',
+        itemsResult.data[itemsResult.data.length - 1].id
+      );
+    }
+    return c.json(stockWithItems);
+  }
+);
 
 inventoryRouter.get(
   '/alerts',

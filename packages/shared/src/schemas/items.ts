@@ -19,6 +19,9 @@ export const ItemSchema = CreateItemSchema.extend({
   id: z.string().min(1),
 });
 
+export const UpdateItemSchema = CreateItemSchema.partial();
+
 export type CreateItem = z.infer<typeof CreateItemSchema>;
+export type UpdateItem = z.infer<typeof UpdateItemSchema>;
 export type Item = z.infer<typeof ItemSchema>;
 export type ItemType = z.infer<typeof ItemTypeSchema>;

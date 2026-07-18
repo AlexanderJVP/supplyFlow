@@ -205,6 +205,25 @@ describe('inventory routes (integration, requires local Supabase)', () => {
     expect(response.status).toBe(403);
   });
 
+  it('paginates the current-stock list with ?after/&limit and reports a next cursor', async () => {
+    for (let i = 0; i < 3; i += 1) {
+      await createItem(tenantA.accessToken, { name: `Stock Page Item ${i}` });
+    }
+
+    const firstPageResponse = await app.fetch(
+      new Request('http://localhost/api/inventory?limit=2', {
+        headers: { Authorization: `Bearer ${tenantA.accessToken}` },
+      }),
+      integrationEnv
+    );
+    expect(firstPageResponse.status).toBe(200);
+    const firstPage = (await firstPageResponse.json()) as Array<{
+      item_id: string;
+    }>;
+    expect(firstPage).toHaveLength(2);
+    expect(firstPageResponse.headers.get('X-Next-Cursor')).toBeTruthy();
+  });
+
   it('isolates current stock and history by tenant (RLS tenant isolation)', async () => {
     const item = await createItem(tenantA.accessToken, {
       name: 'Tenant Isolated Item',

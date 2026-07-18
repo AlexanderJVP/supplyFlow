@@ -36,13 +36,82 @@ async function createBomLine(
 
 describe('bom routes (integration, requires local Supabase)', () => {
   let tenant: TestTenant;
+  let otherTenant: TestTenant;
 
   beforeAll(async () => {
     tenant = await provisionTestTenant('bom');
+    otherTenant = await provisionTestTenant('bom-other');
   });
 
   afterAll(async () => {
     await cleanupTenant(tenant.tenant_id, tenant.admin_user_id);
+    await cleanupTenant(otherTenant.tenant_id, otherTenant.admin_user_id);
+  });
+
+  it("does not return another tenant's BOM tree (RLS tenant isolation)", async () => {
+    const bike = await createItem(tenant.accessToken, {
+      name: 'Isolated Bike',
+      type: 'finished_good',
+    });
+    const bolt = await createItem(tenant.accessToken, {
+      name: 'Isolated Bolt',
+      type: 'component',
+    });
+    expect(
+      (await createBomLine(tenant.accessToken, bike.id, bolt.id, 1)).status
+    ).toBe(201);
+
+    const response = await app.fetch(
+      new Request(`http://localhost/api/bom/${bike.id}/tree`, {
+        headers: { Authorization: `Bearer ${otherTenant.accessToken}` },
+      }),
+      integrationEnv
+    );
+    expect(response.status).toBe(200);
+    const tree = (await response.json()) as unknown[];
+    expect(tree).toHaveLength(0);
+  });
+
+  it('rejects a BOM line whose parent item belongs to another tenant (tenant isolation)', async () => {
+    const foreignBike = await createItem(tenant.accessToken, {
+      name: 'Foreign Bike',
+      type: 'finished_good',
+    });
+    const ownBolt = await createItem(otherTenant.accessToken, {
+      name: 'Own Bolt',
+      type: 'component',
+    });
+
+    const response = await createBomLine(
+      otherTenant.accessToken,
+      foreignBike.id,
+      ownBolt.id,
+      1
+    );
+    expect(response.status).toBe(500);
+    const body = (await response.json()) as { error: string };
+    expect(body.error).toMatch(/tenant/i);
+  });
+
+  it('rejects a BOM line whose child item belongs to another tenant (tenant isolation)', async () => {
+    const ownFrame = await createItem(otherTenant.accessToken, {
+      name: 'Own Frame',
+      type: 'sub_assembly',
+    });
+    const foreignBolt = await createItem(tenant.accessToken, {
+      name: 'Foreign Bolt',
+      type: 'component',
+    });
+
+    const response = await createBomLine(
+      otherTenant.accessToken,
+      ownFrame.id,
+      foreignBolt.id,
+      1
+    );
+    expect(response.status).toBe(500);
+    const body = (await response.json()) as { error: string };
+    expect(body.error).toMatch(/tenant/i);
   });
 
   it('rejects a bom line for a caller without bom.edit permission', async () => {

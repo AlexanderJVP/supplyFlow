@@ -1,4 +1,8 @@
-import { useBomTree } from '../../hooks/useBom';
+import { useState, type FormEvent } from 'react';
+
+import { useBomTree, useCreateBomLine } from '../../hooks/useBom';
+import { useItems } from '../../hooks/useItems';
+import { usePermission } from '../../hooks/usePermission';
 
 export default function BomTreeViewer({
   itemId,
@@ -8,6 +12,39 @@ export default function BomTreeViewer({
   onClose: () => void;
 }) {
   const { data, isLoading, error } = useBomTree(itemId);
+  const { data: items } = useItems();
+  const createBomLine = useCreateBomLine();
+  const canEditBom = usePermission('bom.edit');
+
+  const [childItemId, setChildItemId] = useState('');
+  const [quantity, setQuantity] = useState('1');
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const candidateChildren = (items ?? []).filter((i) => i.id !== itemId);
+
+  async function handleAddLine(e: FormEvent) {
+    e.preventDefault();
+    setFormError(null);
+
+    if (!childItemId || !quantity || Number(quantity) <= 0) {
+      setFormError('Pick a component and a positive quantity.');
+      return;
+    }
+
+    try {
+      await createBomLine.mutateAsync({
+        parent_item_id: itemId,
+        child_item_id: childItemId,
+        quantity: Number(quantity),
+      });
+      setChildItemId('');
+      setQuantity('1');
+    } catch {
+      setFormError(
+        'Failed to add BOM line — check it does not create a cycle.'
+      );
+    }
+  }
 
   return (
     <div
@@ -44,6 +81,44 @@ export default function BomTreeViewer({
             </li>
           ))}
         </ul>
+      )}
+
+      {canEditBom && (
+        <form
+          onSubmit={handleAddLine}
+          style={{
+            marginTop: 16,
+            paddingTop: 16,
+            borderTop: '1px solid #eee',
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
+          }}
+        >
+          <select
+            value={childItemId}
+            onChange={(e) => setChildItemId(e.target.value)}
+          >
+            <option value="">Add component…</option>
+            {candidateChildren.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.sku} — {i.name}
+              </option>
+            ))}
+          </select>
+          <input
+            type="number"
+            min="0"
+            step="any"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+            style={{ width: 80 }}
+          />
+          <button type="submit" disabled={createBomLine.isPending}>
+            {createBomLine.isPending ? 'Adding…' : 'Add'}
+          </button>
+          {formError && <span style={{ color: 'red' }}>{formError}</span>}
+        </form>
       )}
     </div>
   );

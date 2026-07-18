@@ -176,6 +176,91 @@ describe('production routes (integration, requires local Supabase)', () => {
     });
   });
 
+  it('runs a full multi-level BOM->production regression: bolt->frame->bike qty 4, real shortfall then OK, complete, ledger deducts/credits correctly', async () => {
+    const bolt = await createItem(tenantA.accessToken, {
+      name: 'Regression Bolt',
+      type: 'component',
+    });
+    const frame = await createItem(tenantA.accessToken, {
+      name: 'Regression Frame',
+      type: 'sub_assembly',
+    });
+    const bike = await createItem(tenantA.accessToken, {
+      name: 'Regression Bike',
+      type: 'finished_good',
+    });
+
+    // frame requires 4 bolts; bike requires 1 frame.
+    await createBomLine(tenantA.accessToken, frame.id, bolt.id, 4);
+    await createBomLine(tenantA.accessToken, bike.id, frame.id, 1);
+
+    // Enough bolts, but not enough frames to build 4 bikes yet.
+    await adjustStock(tenantA.accessToken, bolt.id, 1000, 'received');
+    await adjustStock(tenantA.accessToken, frame.id, 3, 'received');
+
+    const shortfallResponse = await app.fetch(
+      new Request(
+        `http://localhost/api/production/can-produce?item_id=${bike.id}&quantity=4`,
+        { headers: { Authorization: `Bearer ${tenantA.accessToken}` } }
+      ),
+      integrationEnv
+    );
+    expect(shortfallResponse.status).toBe(200);
+    const shortfallRows = (await shortfallResponse.json()) as Array<{
+      item_id: string;
+      required: number;
+      available: number;
+      shortfall: number;
+    }>;
+    const frameShortfall = shortfallRows.find((r) => r.item_id === frame.id);
+    expect(frameShortfall).toMatchObject({
+      required: 4,
+      available: 3,
+      shortfall: 1,
+    });
+
+    // Top up frames so the build can actually proceed.
+    await adjustStock(tenantA.accessToken, frame.id, 5, 'received');
+
+    const okResponse = await app.fetch(
+      new Request(
+        `http://localhost/api/production/can-produce?item_id=${bike.id}&quantity=4`,
+        { headers: { Authorization: `Bearer ${tenantA.accessToken}` } }
+      ),
+      integrationEnv
+    );
+    const okRows = (await okResponse.json()) as Array<{
+      item_id: string;
+      shortfall: number;
+    }>;
+    expect(okRows.every((r) => r.shortfall === 0)).toBe(true);
+
+    const order = await createProductionOrder(tenantA.accessToken, bike.id, 4);
+    const completeResponse = await completeOrder(tenantA.accessToken, order.id);
+    expect(completeResponse.status).toBe(200);
+    const completed = (await completeResponse.json()) as { status: string };
+    expect(completed.status).toBe('completed');
+
+    const frameHistory = await getHistory(tenantA.accessToken, frame.id);
+    expect(
+      frameHistory.some(
+        (h) => h.quantity_delta === -4 && h.reason === 'consumed'
+      )
+    ).toBe(true);
+
+    const boltHistory = await getHistory(tenantA.accessToken, bolt.id);
+    expect(
+      boltHistory.some(
+        (h) => h.quantity_delta === -16 && h.reason === 'consumed'
+      )
+    ).toBe(true);
+
+    const bikeHistory = await getHistory(tenantA.accessToken, bike.id);
+    expect(
+      bikeHistory.some((h) => h.quantity_delta === 4 && h.reason === 'produced')
+    ).toBe(true);
+  });
+
   it('completes a production order: deducts components, credits the finished good, marks completed', async () => {
     const bike = await createItem(tenantA.accessToken, {
       name: 'Complete Bike',
@@ -315,6 +400,29 @@ describe('production routes (integration, requires local Supabase)', () => {
     expect(response.status).toBe(200);
     const cancelled = (await response.json()) as { status: string };
     expect(cancelled.status).toBe('cancelled');
+  });
+
+  it('paginates the production order list with ?after/&limit and reports a next cursor', async () => {
+    const item = await createItem(tenantA.accessToken, {
+      name: 'Pagination Production Item',
+      type: 'finished_good',
+    });
+    for (let i = 0; i < 3; i += 1) {
+      await createProductionOrder(tenantA.accessToken, item.id, 1);
+    }
+
+    const firstPageResponse = await app.fetch(
+      new Request('http://localhost/api/production?limit=2', {
+        headers: { Authorization: `Bearer ${tenantA.accessToken}` },
+      }),
+      integrationEnv
+    );
+    expect(firstPageResponse.status).toBe(200);
+    const firstPage = (await firstPageResponse.json()) as Array<{
+      id: string;
+    }>;
+    expect(firstPage).toHaveLength(2);
+    expect(firstPageResponse.headers.get('X-Next-Cursor')).toBeTruthy();
   });
 
   it('isolates production orders by tenant (RLS tenant isolation)', async () => {
