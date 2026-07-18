@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import type { Item, ItemType } from '@manufacturing/shared';
 
 import {
@@ -8,7 +9,6 @@ import {
   useUpdateItem,
 } from '../../hooks/useItems';
 import { usePermission } from '../../hooks/usePermission';
-import BomTreeViewer from '../bom/BomTreeViewer';
 
 const ITEM_TYPES: ItemType[] = ['component', 'sub_assembly', 'finished_good'];
 
@@ -63,7 +63,6 @@ export default function ItemList() {
   const archiveItem = useArchiveItem();
   const canEdit = usePermission('items.edit');
   const canArchive = usePermission('items.archive');
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
   const [sku, setSku] = useState('');
@@ -126,14 +125,13 @@ export default function ItemList() {
                 />
               ) : (
                 <tr key={item.id}>
-                  <td>{item.sku}</td>
+                  <td>
+                    <Link to={`/items/${item.id}`}>{item.sku}</Link>
+                  </td>
                   <td>{item.name}</td>
                   <td>{item.type}</td>
                   <td>{item.unit_of_measure}</td>
                   <td style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => setSelectedItemId(item.id)}>
-                      View BOM
-                    </button>
                     {canEdit && (
                       <button onClick={() => setEditingItemId(item.id)}>
                         Edit
@@ -153,13 +151,6 @@ export default function ItemList() {
             )}
           </tbody>
         </table>
-      )}
-
-      {selectedItemId && (
-        <BomTreeViewer
-          itemId={selectedItemId}
-          onClose={() => setSelectedItemId(null)}
-        />
       )}
 
       <h2 style={{ marginTop: 32 }}>New item</h2>

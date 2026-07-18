@@ -9,7 +9,7 @@ export default function BomTreeViewer({
   onClose,
 }: {
   itemId: string;
-  onClose: () => void;
+  onClose?: () => void;
 }) {
   const { data, isLoading, error } = useBomTree(itemId);
   const { data: items } = useItems();
@@ -63,7 +63,7 @@ export default function BomTreeViewer({
         }}
       >
         <h2 style={{ margin: 0 }}>BOM tree</h2>
-        <button onClick={onClose}>Close</button>
+        {onClose && <button onClick={onClose}>Close</button>}
       </div>
 
       {isLoading && <p>Loading…</p>}

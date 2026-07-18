@@ -17,6 +17,7 @@ export const CreateItemSchema = z.object({
 
 export const ItemSchema = CreateItemSchema.extend({
   id: z.string().min(1),
+  is_archived: z.boolean(),
 });
 
 export const UpdateItemSchema = CreateItemSchema.partial();

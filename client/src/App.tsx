@@ -12,6 +12,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { usePermission } from './hooks/usePermission';
 import Login from './pages/Login';
 import ItemList from './pages/items/ItemList';
+import ItemDetail from './pages/items/ItemDetail';
 import StockDashboard from './pages/inventory/StockDashboard';
 import ProductionOrders from './pages/production/ProductionOrders';
 import Proposals from './pages/proposals/Proposals';
@@ -87,6 +88,7 @@ function AppRoutes() {
       <Route path="/login" element={<LoginRoute />} />
       <Route element={<ProtectedLayout />}>
         <Route path="/items" element={<ItemList />} />
+        <Route path="/items/:id" element={<ItemDetail />} />
         <Route path="/inventory" element={<StockDashboard />} />
         <Route path="/production" element={<ProductionOrders />} />
         <Route path="/proposals" element={<Proposals />} />
