@@ -12,14 +12,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # pnpm must be installed before setup-node, which needs it to resolve
+      # the pnpm store path for `cache: 'pnpm'`.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      # Node 22: wrangler 4 requires node >= 22.
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 22
           cache: 'pnpm'
-
-      - name: Install pnpm
-        run: npm install -g pnpm
 
       - name: Install dependencies
         run: pnpm install
