@@ -313,12 +313,62 @@ describe('production routes (integration, requires local Supabase)', () => {
     const order = await createProductionOrder(tenantA.accessToken, bike.id, 5);
 
     const response = await completeOrder(tenantA.accessToken, order.id);
-    expect(response.status).toBe(500);
-    const body = (await response.json()) as { error: string };
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as {
+      error: string;
+      code: string;
+      shortfalls: Array<{
+        item_id: string;
+        required: number;
+        available: number;
+        shortfall: number;
+      }>;
+    };
     expect(body.error).toMatch(/insufficient/i);
+    expect(body.code).toBe('insufficient_stock');
+    expect(body.shortfalls).toEqual([
+      { item_id: bolt.id, required: 20, available: 5, shortfall: 15 },
+    ]);
 
     const boltHistory = await getHistory(tenantA.accessToken, bolt.id);
     expect(boltHistory.some((h) => h.reason === 'consumed')).toBe(false);
+  });
+
+  it('serializes concurrent completions on the same component: exactly one succeeds and stock never goes negative (STORY-043)', async () => {
+    const bike = await createItem(tenantA.accessToken, {
+      name: 'Concurrent Bike',
+      type: 'finished_good',
+    });
+    const bolt = await createItem(tenantA.accessToken, {
+      name: 'Concurrent Bolt',
+      type: 'component',
+    });
+    await createBomLine(tenantA.accessToken, bike.id, bolt.id, 4);
+    // Exactly enough bolts for ONE order of 5 bikes (5 x 4 = 20).
+    await adjustStock(tenantA.accessToken, bolt.id, 20, 'received');
+
+    const orderA = await createProductionOrder(tenantA.accessToken, bike.id, 5);
+    const orderB = await createProductionOrder(tenantA.accessToken, bike.id, 5);
+
+    // Fired in parallel: two separate requests, two separate DB
+    // transactions, both of which would pass a check made without locking.
+    const responses = await Promise.all([
+      completeOrder(tenantA.accessToken, orderA.id),
+      completeOrder(tenantA.accessToken, orderB.id),
+    ]);
+    const statuses = responses.map((r) => r.status).sort();
+    expect(statuses).toEqual([200, 409]);
+
+    const boltHistory = await getHistory(tenantA.accessToken, bolt.id);
+    const boltStock = boltHistory.reduce(
+      (sum, h) => sum + Number(h.quantity_delta),
+      0
+    );
+    expect(boltStock).toBe(0);
+    expect(boltHistory.filter((h) => h.reason === 'consumed')).toHaveLength(1);
+
+    const bikeHistory = await getHistory(tenantA.accessToken, bike.id);
+    expect(bikeHistory.filter((h) => h.reason === 'produced')).toHaveLength(1);
   });
 
   it('rejects order creation for a caller without production.create permission', async () => {

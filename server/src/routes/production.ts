@@ -3,12 +3,29 @@ import { zValidator } from '@hono/zod-validator';
 
 import {
   CanProduceQuerySchema,
+  CanProduceShortfallSchema,
   CreateProductionOrderSchema,
   PaginationQuerySchema,
+  type CanProduceShortfall,
+  type InsufficientStockError,
 } from '@manufacturing/shared';
 import { toCsv } from '../lib/csv';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import type { AppEnv } from '../types';
+
+// Custom SQLSTATE raised by complete_production_order when stock runs out.
+const INSUFFICIENT_STOCK_SQLSTATE = 'SK409';
+
+function parseShortfalls(details: string | undefined): CanProduceShortfall[] {
+  try {
+    const parsed = CanProduceShortfallSchema.array().safeParse(
+      JSON.parse(details ?? '[]')
+    );
+    return parsed.success ? parsed.data : [];
+  } catch {
+    return [];
+  }
+}
 
 export const productionRouter = new Hono<AppEnv>();
 productionRouter.use('*', requireAuth);
@@ -168,6 +185,16 @@ productionRouter.post(
       })
       .single();
 
+    if (error?.code === INSUFFICIENT_STOCK_SQLSTATE) {
+      // complete_production_order raises SK409 with the shortfalls as JSON
+      // in DETAIL -- see migration 20260926000000_stock_lock_helper.sql.
+      const body: InsufficientStockError = {
+        error: 'Insufficient stock to complete production order',
+        code: 'insufficient_stock',
+        shortfalls: parseShortfalls(error.details),
+      };
+      return c.json(body, 409);
+    }
     if (error) return c.json({ error: error.message }, 500);
     return c.json(data);
   }

@@ -19,6 +19,7 @@ export type {
   CanProduceRequest,
   CanProduceQuery,
   CanProduceShortfall,
+  InsufficientStockError,
 } from '../schemas/production';
 export type {
   CreateProposal,
