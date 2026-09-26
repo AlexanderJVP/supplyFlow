@@ -33,7 +33,7 @@ export const ProposalSchema = CreateProposalSchema.extend({
   id: z.string().uuid(),
   tenant_id: z.string().uuid(),
   status: ProposalStatusSchema,
-  created_by: z.string().uuid(),
+  created_by: z.string().uuid().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -46,7 +46,7 @@ export const CreateProposalReviewSchema = z.object({
 export const ProposalReviewSchema = CreateProposalReviewSchema.extend({
   id: z.string().uuid(),
   proposal_id: z.string().uuid(),
-  reviewer_id: z.string().uuid(),
+  reviewer_id: z.string().uuid().nullable(),
   created_at: z.string(),
 });
 

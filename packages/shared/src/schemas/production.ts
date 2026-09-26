@@ -19,7 +19,7 @@ export const ProductionOrderSchema = CreateProductionOrderSchema.extend({
   status: ProductionStatusSchema,
   started_at: z.string().nullable(),
   completed_at: z.string().nullable(),
-  created_by: z.string().uuid(),
+  created_by: z.string().uuid().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });

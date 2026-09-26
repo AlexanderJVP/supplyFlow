@@ -27,7 +27,7 @@ export const StockLedgerEntrySchema = z.object({
   reason: LedgerReasonSchema,
   reference_type: z.string().optional(),
   reference_id: z.string().uuid().optional(),
-  user_id: z.string().uuid(),
+  user_id: z.string().uuid().nullable(),
   notes: z.string().max(2000).optional(),
   created_at: z.string(),
 });
