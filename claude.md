@@ -18,6 +18,101 @@ A multi-tenant SaaS platform for SME manufacturing companies (10–250 employees
 
 This is **not** a warehouse system. It is a **Manufacturing Operations Platform**.
 
+### Product Vision (from the product owner, 2026-09-26)
+
+This is the *why* behind every feature. When a design choice is unclear,
+pick the option that serves these two ideas best.
+
+**1. The Russian doll — every in-house product is also a component.**
+The company builds its products in house, so every part is tracked here:
+not only bought components (a screw), but also the products it makes
+itself and then builds into bigger products (a frame → a bicycle). Each
+level is a full item in its own right that can be looked at on its own:
+its own BOM, its own stock, its own history, and where it is used.
+Design rules that follow from this:
+- `item_type` (`component` / `sub_assembly` / `finished_good`) is a
+  *label*, never a structural limit. Any item can be a parent and a child;
+  never special-case "top-level product" vs. "component" in queries, RPCs
+  or UI. Only `prevent_bom_cycle` / `prevent_bom_cross_tenant` restrict
+  the tree.
+- Every item page must work the same at every level of the doll: BOM
+  down (built: `BomTreeViewer`, recursive CTE) **and** where-used up
+  (*not built yet* — there is no "which products contain this item?"
+  view or endpoint today).
+
+**2. Change proposals replace slow meetings.**
+Anyone with the right to propose can suggest a change to a product — e.g.
+"use a Phillips screw instead of the current one" — and production,
+supply managers and other managers review and decide *inside the app*,
+in the order the company configured, instead of spending months in large
+meetings. Design rules that follow from this:
+- A proposal must be decidable from the app alone: a reviewer must see
+  **what** changes (a readable before/after, not JSON), **impact** (which
+  products are affected up the doll, stock of the old and new part,
+  anything that can't be built afterwards), **who** already reviewed with
+  what notes, and **who is next**.
+- Approval chains are per company and multi-role (e.g. engineering →
+  supply → management), configurable by the tenant admin without a
+  developer.
+- An approved change applies itself atomically (built for `bom_change`
+  via `apply_bom_change_payload`) — no manual follow-up step.
+- **Current gaps against this vision (as of 2026-09-26):** the proposal
+  list shows reviewers only title/type/status — not the change, its
+  impact, or the review history; every tenant gets exactly one workflow
+  step per proposal type (the Admin role) and there is no API/UI to
+  configure chains (`admin.manage_workflow` exists as a permission but
+  nothing uses it); a `bom_change` is scoped to one parent item, so
+  "swap this screw in every product that uses it" isn't expressible;
+  `item_change` / `process_change` have no defined payload and apply
+  nothing on approval. All of these are on the backlog (`.project/`):
+  `STORY-055` review screen, `STORY-056` where-used, `STORY-057` impact,
+  `STORY-058` approval chains, `STORY-059` replace everywhere,
+  `STORY-060` notifications, `STORY-020` item_change (`process_change`
+  parked — there are no production steps for it to change).
+
+**3. Onboarding is a service, and every company is configured to fit.**
+The platform owner onboards each customer personally: studies how they
+work, then creates their roles, access and approval chains, and loads
+their data. Roles and chains are never known in advance, so nothing about
+a company's organisation may be hard-coded — everything is per-tenant
+configuration (templates are only starting points). Design rules:
+- **Visibility is per page, not per record** (decided 2026-09-26). Each
+  role sees only the pages it needs — the Admin page's pattern (menu link
+  hidden, page refuses, server refuses) applies to every page. Whoever may
+  see a page sees all of that company's data on it; per-department or
+  per-person data filters are deliberately out of scope. Today
+  `items.view`/`bom.view` aren't enforced server-side and there is no
+  `proposals.view` — `STORY-061`/`STORY-062`.
+- The owner's access to a customer tenant is a visible, customer-removable
+  support account, never hidden or impersonated access — proposed in
+  `.project/engineering/decisions/ADR-004.md` (accepted 2026-09-26). Note one login belongs to exactly one
+  tenant (`profiles.id` = `auth.users.id`).
+
+**4. Long term:** the platform every manufacturing SME wants for managing
+its stock as effectively as possible. Built for the owner's own company
+first; intended to become a SaaS later — keep multi-tenant isolation,
+per-tenant configuration and self-service admin as first-class concerns.
+
+> **Pending scope decision (2026-08-01, not yet implemented):** multi-location/multi-building
+> warehouse inventory and fulfillment (pick/pack/ship) have been confirmed as a deliberate,
+> in-scope expansion — see `ADR-002` (`.project/engineering/decisions/ADR-002.md`, status
+> `accepted` since 2026-09-26; `EPIC-009`/`STORY-040` still in `.project/staging/`). This line above reflects what's shipped today, not the decided
+> future scope; it will be rewritten once `EPIC-009` ships (`STORY-040`). Left as an inline note
+> rather than rewritten now, since the feature isn't built yet and this doc should describe
+> reality, not intent.
+>
+> **ADR-003 accepted 2026-09-26 (not yet implemented):**
+> `.project/engineering/decisions/ADR-003.md` (permission_version check — a demoted/deleted
+> user's existing JWT stops working on their next request instead of up to ~1h later). The
+> 2026-08-30 review's five concerns (non-atomic DB/GoTrue writes → infinite 401 loop,
+> deploy-day thundering herd, missing-profile vs. stale collapsing into one 401, last-write-wins
+> race, "not MVP" vs. invite lockout) were resolved in a revision: Postgres is the source of
+> truth and `requireAuth` self-repairs a stale `app_metadata`; distinct `token_stale` /
+> `account_inactive` codes with a single client retry; a `PERMISSION_VERSION_ENFORCE` rollout
+> flag. Also found during that revision: `client/src/lib/api.ts` currently signs out on *every*
+> 401 rather than refreshing — the ADR includes that client change. Tracked as `STORY-030`
+> (backlog block 4, not MVP).
+
 ---
 
 ## Current Development Snapshot
@@ -31,34 +126,43 @@ Phases 1-5 are real, tested, and verified end-to-end — including a full live D
 - **Items**: full CRUD — `GET /` (paginated), `POST /`, `PATCH /:id`, `PATCH /:id/archive` — gated by `items.create`/`items.edit`/`items.archive`, RLS-scoped. Client: `ItemList.tsx` (paged table, inline edit, archive) and `ItemDetail.tsx` (`/items/:id` — full fields, edit/archive, current stock, recent stock movements, embedded BOM tree).
 - **BOM**: `GET /:itemId/tree` (recursive-CTE RPC), `POST /` (requires `bom.edit`). Two DB triggers guard integrity: `prevent_bom_cycle` (self-reference/circular) and `prevent_bom_cross_tenant` (parent/child item must belong to the BOM line's own tenant — RLS doesn't catch this since FK lookups bypass it). `BomTreeViewer.tsx` has a child-item + quantity add form.
 - **Inventory & Production**: paginated list endpoints, `/inventory/alerts` (reorder-point), `/inventory/export` and `/production/export` (CSV, gated by `inventory.export`/`production.view`), `complete_production_order`/`can_produce` RPCs — verified end-to-end for a multi-level bolt→frame→bike BOM. Client pages have paged tables + "Export CSV" buttons.
-- **Workflow & Proposals**: `server/src/routes/proposals.ts` (`GET /`, `POST /`, `POST /:id/submit`, `POST /:id/review`) backed by `submit_proposal`/`review_proposal` RPCs, which walk the tenant's `workflow_steps` chain matching the reviewer's actual `profiles.role_id` (not just the coarse `proposals.review` permission) and, on final approval of a `bom_change`, atomically apply the payload via `apply_bom_change_payload`. Client: `Proposals.tsx` — list, submit, approve/reject/request-changes; `bom_change` payloads are entered as raw JSON (no structured diff editor yet).
+- **Workflow & Proposals**: `server/src/routes/proposals.ts` (`GET /`, `POST /`, `POST /:id/submit`, `POST /:id/review`) backed by `submit_proposal`/`review_proposal` RPCs, which walk the tenant's `workflow_steps` chain matching the reviewer's actual `profiles.role_id` (not just the coarse `proposals.review` permission) and, on final approval of a `bom_change`, atomically apply the payload via `apply_bom_change_payload`. Client: `Proposals.tsx` — list, submit, approve/reject/request-changes; `bom_change` payloads use a structured line-item editor (`BomChangeEditor.tsx`, added 2026-07-18) scoped to one parent item at a time — shows existing BOM lines (editable quantity/notes, removable) plus a BomTreeViewer-style add-line form, and assembles the `BomChangePayload` automatically. Needed a new read endpoint, `GET /bom/:itemId/lines` (direct, non-recursive lines with their own `id`, unlike the recursive `/tree` RPC which never exposes `bom_lines.id`), backed by `useBomLines()`. `item_change`/`process_change` payloads still use the raw JSON textarea (no defined schema for those types).
 - **Admin — invite user / manage roles** (closed the last Phase 1 gap): `server/src/routes/roles.ts` (list/create/edit; editing a role's permissions pushes the new snapshot to every current member's `app_metadata`, since permissions are baked into the JWT at invite time, not looked up live) and `server/src/routes/users.ts` (list, `POST /invite` via `supabase.auth.admin.inviteUserByEmail`, `PATCH /:id/role` reassignment, also syncing `app_metadata`). Client: `Admin.tsx` (`/admin`) with a `PermissionsEditor` checkbox-grid component, nav-linked only for users who actually hold `admin.manage_users`/`admin.manage_roles`.
 - **Audit logging**: a single generic trigger (`log_audit_event`, migration `20260718000003_audit_log_triggers.sql`) attached to `items`, `bom_lines`, `production_orders`, `proposals`, `roles`, `profiles` — replaced the manual `insert into audit_logs` calls that used to be scattered across RPCs, and closed a real coverage gap (items/bom_lines direct writes were never audited before). Deliberately **not** attached to `stock_ledger` or `proposal_reviews` (both are already their own append-only audit trail) or `tenants`/`workflow_steps` (service-role-created, low churn).
-- **Rate limiting / security headers**: registration (`POST /api/admin/tenants`) is rate-limited; login is not server-side rate-limited because it never touches our server — the client calls `supabase.auth.signInWithPassword` directly (see Auth Architecture), so GoTrue's own limits are what protect it. `server/src/middleware/securityHeaders.ts` sets a maximally strict CSP (JSON-only API), `X-Frame-Options`, `X-Content-Type-Options`, HSTS, `Referrer-Policy` globally, ahead of CORS.
+- **Rate limiting / security headers**: registration (`POST /api/admin/tenants`, 3/IP/hour) and invite (`POST /api/users/invite`, 10/IP/hour — added 2026-07-18, same abuse shape since it sends a real email per call) are rate-limited via the shared `rateLimit()` middleware (`server/src/middleware/rateLimit.ts`); login is not server-side rate-limited because it never touches our server — the client calls `supabase.auth.signInWithPassword` directly (see Auth Architecture), so GoTrue's own limits are what protect it. `server/src/middleware/securityHeaders.ts` sets a maximally strict CSP (JSON-only API), `X-Frame-Options`, `X-Content-Type-Options`, HSTS, `Referrer-Policy` globally, ahead of CORS.
 - **Sentry**: both sides DSN-gated and no-op cleanly when unset. Server: `@hono/sentry` (toucan-js, runs natively in the Workers isolate, no `nodejs_compat` flag needed). Client: `@sentry/react`, initialized from `VITE_SENTRY_DSN` in `main.tsx`, wrapping `<App />` in an `ErrorBoundary`.
 - **Pagination**: `items`/`production`/`inventory` list endpoints accept `?after=<uuid>&limit=<n>` (default 50, max 200), reporting a next-page cursor via `X-Next-Cursor` — remember to also add the header to `Access-Control-Expose-Headers` in `server/src/index.ts` for any new one, or browsers silently strip it (hit this exact bug adding the frontend pager). Client: `useCursorPagination` + `Pager` component wired into all three list pages; picker/lookup consumers (BOM child select, production/inventory item selects) use a separate unpaginated (up to 200) query so dropdowns still show everything.
 - **Client**: `App.tsx` — React Router v7, routes for `/items`, `/items/:id`, `/inventory`, `/production`, `/proposals`, `/admin`, all behind `ProtectedLayout`.
 - `packages/shared` schemas: items (`UpdateItemSchema`, `is_archived` on `ItemSchema`), tenants, bom, inventory, production, proposals (`BomChangePayloadSchema`, `ProposalType`/`ProposalStatus` type aliases), auth, pagination (`PaginationQuerySchema`), roles, users.
-- `pnpm run test` (76 tests: server + client + shared combined) and `pnpm run typecheck` both green — re-verified 2026-07-18, plus the live Docker smoke test above.
+- `pnpm run test` (76 tests: server + client + shared combined) and `pnpm run typecheck` both green as of 2026-07-18, plus the live Docker smoke test above. **Re-checked 2026-08-10** and again **2026-08-30**: `pnpm run typecheck` still passes clean both times. `pnpm run test` server-side integration tests need local Supabase running (`pnpm run db:up`) — Docker wasn't reachable in either check's environment, so the 9 integration test files still fail the same way (`ECONNREFUSED 127.0.0.1:54321`, now surfaced as an outer `TypeError: fetch failed` wrapping the same cause — cosmetic vitest-version difference, not a new failure mode; environmental, not a code regression; the 2 client tests and Supabase-independent server tests passed both times). The uncommitted changes to `bom.test.ts`/`users.test.ts` are therefore **still** unverified against a real run, 20 days on — this needs a machine with Docker Desktop actually running, not another sandboxed check.
 - **Known gotchas**:
   - Hono's bare `.use(requireAuth)` (no path) doesn't apply to nested dynamic routes — always `.use('*', requireAuth)`.
   - `alter table ... enable row level security` with no matching `create policy` is a silent deny-all, not a no-op (hit this with `proposal_reviews`) — grep for this pairing whenever adding a table.
-  - **Real, still-open schema gap found via live smoke testing**: `proposal_reviews.reviewer_id` (and similarly `items.created_by`, `stock_ledger.user_id`, `production_orders.created_by`, `proposals.created_by`) reference `profiles(id)` with no `ON DELETE` behavior. A tenant that has ever had a proposal reviewed can't be cascade-deleted through `tenants` — `profiles.tenant_id`'s cascade and `proposals.tenant_id`'s cascade race as two independent paths, and the FK check on `reviewer_id` can fire before the other path removes the referencing row. `SET NULL` is probably the right fix (so historical records survive an actor's removal) but requires dropping `NOT NULL` on those columns — a real design decision, not a one-line fix. See Resume Point.
+  - **Fixed 2026-07-18**: `proposal_reviews.reviewer_id` (and similarly `items.created_by`, `stock_ledger.user_id`, `production_orders.created_by`, `proposals.created_by`) referenced `profiles(id)` with no `ON DELETE` behavior, so a tenant that had ever had a proposal reviewed couldn't be cascade-deleted through `tenants` (`profiles.tenant_id`'s cascade and `proposals.tenant_id`'s cascade raced as two independent paths, and the FK check on `reviewer_id` could fire before the other path removed the referencing row). Migration `20260718000004_profiles_fk_set_null.sql` changed all five FKs to `ON DELETE SET NULL` and dropped `NOT NULL` on those columns, so historical audit/ownership records now survive an actor's removal instead of blocking it. `cleanupTenant()` in `server/src/test/integrationHelpers.ts` no longer needs its manual `proposal_reviews` pre-clear workaround — removed along with the fix. Client-facing types (`ProposalSchema.created_by`, `ProposalReviewSchema.reviewer_id`, `ProductionOrderSchema.created_by`, `StockLedgerEntrySchema.user_id`) are now `.nullable()` in `packages/shared`.
   - `supabase db reset` can leave Kong holding a stale `auth` container IP (502 until `docker restart supabase_kong_supply`), and `supabase_vector_supply` restart-loops on `Network unreachable` (Logflare's log-shipping sidecar failing to reach the Docker socket on Windows/Docker Desktop) — neither affects Postgres/Auth/PostgREST/Kong or the app itself.
-- Git history: everything above is committed across a series of small, single-purpose commits on `master`; working tree is clean except the untracked `.claude/` dir.
+- **Update 2026-09-26 — the uncommitted work below is now committed** as five local commits on `master` (`a5a3353` FK migration, `d992e16` BOM-diff editor, `867efc5` CSV export state, `4c2d6f2` invite rate limit, `61004f0` Cloudflare Pages deploy — the last also fixes `deploy.yml`'s invalid `secrets` reference in step `if:`). Still **not pushed** (local `master` is now 17 ahead of `origin/master`), integration tests still **not run** against a live Supabase, and `.project/`/`app/`/`domain-model.*`/`.kilo/` are still untracked pending a decision. Still open in CI: `actions/setup-node` with `cache: 'pnpm'` runs before pnpm is installed in both `ci.yml` and `deploy.yml`. The paragraph below is kept as history.
+- **Git history / uncommitted state (found by `/catchup` audit, 2026-08-10; re-verified unchanged by `/catchup` on 2026-08-30)**: the doc claim below ("working tree is clean except `.claude/`") was stale and wrong. A full round of work — items 2, 3, 6, 7, 8 below, plus the FK-nullable migration from Known Gotchas — was actually implemented (confirmed complete and working: typecheck passes clean, code is fully wired up, not stubs) but **never committed**. It's sitting as unstaged/untracked changes in the working tree right now: `.github/workflows/deploy.yml`, `client/package.json`, `client/src/hooks/useBom.ts` + new `useDownloadCsv.ts`, `client/src/pages/inventory/StockDashboard.tsx`, `client/src/pages/production/ProductionOrders.tsx`, `client/src/pages/proposals/Proposals.tsx` + new `BomChangeEditor.tsx`, `client/wrangler.toml` (new), `packages/shared/src/schemas/{inventory,production,proposals}.ts`, `server/src/routes/{bom,bom.test,users,users.test}.ts`, `server/src/test/integrationHelpers.ts`, `supabase/migrations/20260718000004_profiles_fk_set_null.sql` (new). The prior commit (`e450ccc`, a docs-only reconciliation) documented this work as shipped without the actual code landing alongside it. **Also untracked, unrelated to product code**: `app/` and `.project/` (a separate "AI-native agile project OS" scaffold from a Claude Code skill — kanban/backlog tooling, not manufacturing-platform features) and `domain-model.json`/`domain-model-notes.md` (from a domain-modeling skill). These need a deliberate decision (commit, or add to `.gitignore`) rather than sitting untracked indefinitely. **Confirmed on 2026-08-30: nothing has changed in the intervening 20 days** — `HEAD` is still `e450ccc` (2026-07-18, now 43 days old), the dirty/untracked file lists above are byte-for-byte identical, and no partial progress landed. **New fact found 2026-08-30**: separately from the uncommitted working-tree changes, local `master` is also **12 commits ahead of `origin/master`** (nothing behind) — there's an unpushed-commits backlog on top of the uncommitted-work problem, so "committed" and "on GitHub" are two different gaps to close.
+- `README.md` is also stale — it still describes Phase-0/bootstrap state ("ask the agent to scaffold client and server") and doesn't mention any shipped feature. Not the source of truth (this file is), but misleading as a repo entry point.
 
 ### Resume Point
 
-Phases 1-5 are done, plus most of Phase 6. What's left, in order:
+Phases 1-5 are done, plus most of Phase 6. What's left, ordered by what actually blocks a real deployment vs. polish:
 
-1. **Decide and fix the `profiles(id)` FK cascade gap** (see Known gotchas above) — needs a real decision (`SET NULL` + drop `NOT NULL` on `created_by`/`user_id`/`reviewer_id` columns is the likely answer) rather than a rushed migration.
-2. **CSV export payload growth**: both export endpoints cap at 10k rows with no pagination — fine for SME scale today, but revisit if a tenant ever approaches that.
-3. **Structured BOM-diff editor for `bom_change` proposals** — `Proposals.tsx` currently takes the payload as raw JSON with a shape hint; a real line-item editor (mirroring `BomTreeViewer`'s add-line form) would be much friendlier.
-4. **Reconcile Non-Negotiable Security Rule 6** — it says "Login: 5 attempts per IP per 15 minutes," but login never reaches our server (see Auth Architecture), so that half of the rule can't be implemented here; update the rule's wording to describe what's actually enforced (GoTrue's own limits) rather than leaving it looking unimplemented.
-5. **CSV export UI has no loading/error state** — `downloadCsv()` just fires and forgets; a failed export currently fails silently in the browser console.
-6. **Sentry has no real DSN configured anywhere** — the integration is wired and tested to no-op safely, but nobody has actually created a Sentry project yet; do that when there's a real deployment to monitor.
-7. **`stock_ledger` audit rationale isn't written down anywhere except code comments** — worth a line in the Database Schema section above explaining why it's exempt from the generic audit trigger.
-8. Re-run the full verify pass (typecheck + all tests + a live Docker E2E smoke test) after any of the above, before committing.
+1. ~~Decide and fix the `profiles(id)` FK cascade gap~~ — **implemented 2026-07-18, but see the uncommitted-state note above: the migration file itself is still untracked in git.**
+2. ~~Decide the client's deployment target~~ — **decided 2026-07-18: Cloudflare Pages.** `client/wrangler.toml` (static SPA, `pages_build_output_dir = "dist"`, same `account_id` as `server/wrangler.toml`), `wrangler` as a client devDependency, and `pnpm --filter client run deploy` all implemented and verified working locally — **but still uncommitted**, see note above.
+3. ~~Fix `deploy.yml` to inject production env vars into the client build~~ — **implemented 2026-07-18** (triggers on `[main, master]`, builds client with the four `VITE_*` secrets, deploys via `wrangler pages deploy`, gated on `CLOUDFLARE_API_TOKEN`) — **but still uncommitted**, see note above.
+4. **Still open — needs your Cloudflare/Supabase account access, not something achievable from this sandbox**: create the actual Cloudflare Pages project (`manufacturing-platform-client`, matching `client/wrangler.toml`), add the GitHub Actions repo secrets deploy.yml now expects (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` — already needed by the Worker step; plus new `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL`, `VITE_SENTRY_DSN` for the client build), and confirm the Worker's production secrets are set via `wrangler secret put SUPABASE_URL` / `SUPABASE_SERVICE_KEY` / `ADMIN_SECRET` / `ALLOWED_ORIGIN` / `ADMIN_ORIGIN` (`ALLOWED_ORIGIN` should point at the real `*.pages.dev` or custom domain once the Pages project exists).
+5. **Do a real staging deploy dry run** once 4 is sorted, and smoke-test it the same way the live Docker E2E test does locally — provision a tenant, sign in, hit a few routes.
+6. ~~Structured BOM-diff editor for `bom_change` proposals~~ — **implemented 2026-07-18** (`BomChangeEditor.tsx` + `GET /bom/:itemId/lines`) — **but still uncommitted**, see note above.
+7. ~~Extend rate limiting to `POST /api/users/invite`~~ — **implemented 2026-07-18** (10/IP/hour, same `rateLimit()` middleware as registration) — **but still uncommitted**, see note above.
+8. ~~CSV export UI has no loading/error state~~ — **implemented**: `useDownloadCsv.ts` wraps `downloadCsv()` with `isDownloading`/`error` state, wired into both `StockDashboard.tsx` and `ProductionOrders.tsx` (disabled "Exporting…" button + visible error message on failure) — **but still uncommitted**, see note above.
+9. ~~Reconcile Non-Negotiable Security Rule 6's wording~~ — **already done** (commit `e450ccc`); the rule below already describes GoTrue's own login limits instead of claiming an unimplemented 5/IP/15min server-side check. This Resume Point item was stale.
+10. **Get a real Sentry DSN** once there's an actual deployment to monitor, and confirm errors from that deploy show up.
+11. **Partly done 2026-09-26 — committed as five logical commits; still needs the verify pass (tests against live Supabase), the untracked-scaffold decision, and the README update.** Original item: **commit the uncommitted work.** Items 1, 2, 3, 6, 7, 8 above are all done in the working tree but not in git history — **still true 43 days later as of 2026-08-30, zero progress**. Split into logical commits (FK migration + nullable schema types + integrationHelpers cleanup; BOM-diff proposal editor; CSV export loading/error UX; Cloudflare Pages deploy pipeline; invite rate limiting), decide what to do with the untracked `app/`/`.project/`/`domain-model.*` tooling scaffolds (commit deliberately or `.gitignore`), then re-run the full verify pass (`pnpm run typecheck`, `pnpm run test` with local Supabase up via `pnpm run db:up` — the modified `bom.test.ts`/`users.test.ts` are unverified against a live Supabase, only typechecked) before treating any of 1/2/3/6/7/8 as actually done. Also update the stale `README.md`.
+12. **New 2026-08-30 — push local `master` to `origin/master` once the above is committed.** Local is 12 commits ahead of the remote with nothing behind (unrelated to the uncommitted working-tree changes — a separate, already-committed backlog that's just never been pushed). Confirm with the user before pushing.
+13. ~~Resolve ADR-003's review before implementing it~~ — **done 2026-09-26**: revised to address all five concerns and accepted (see the note at the top). Ready to implement when `STORY-030` comes up in the backlog; not urgent.
+
+Items 2–5 are a connected deployment-readiness cluster worth doing together; 6, 8, 10 are independent polish; 11 blocks all of them from being durably "done," and 12 is the next gap right after 11 closes. 13 is resolved. Also still open: CSV export payload growth (both export endpoints cap at 10k rows with no pagination — fine for SME scale today) and the `stock_ledger` audit-exemption rationale isn't written down anywhere except code comments. Re-run the full verify pass (typecheck + all tests + a live Docker E2E smoke test) after any of the above, before committing.
 
 ---
 
@@ -908,4 +1012,7 @@ $$;
 
 ---
 
-*Last updated: 2026-07-18 (invite-user/manage-roles admin, proposal inbox UI, item detail page, frontend pagination, CSV export, Sentry, generic audit triggers, and auth-endpoint rate limiting all shipped and verified via a live Docker E2E smoke test; Current Development Snapshot, Resume Point, Non-Negotiable Security Rules, and Feature Build Order checklists reconciled against actual code). Update this document whenever an architectural decision changes.*
+*Last updated: 2026-09-26 (added the Product Vision section from the product owner — Russian-doll BOM and in-app change proposals as the core idea, with current gaps against it; recorded that the previously uncommitted work is now committed but unpushed/untested. The `.project/` backlog was also reviewed and reorganized the same day — see `.project/scrum/product-backlog.md` and `.project/product/roadmap.md`.)*
+*Prior update: 2026-08-30 (`/catchup` audit: re-verified the 2026-08-10 findings are still accurate 20 days later — the same working-tree changes are still uncommitted (43 days now), typecheck still clean, integration tests still blocked on Docker/Supabase not running. New findings this pass: local `master` is 12 commits ahead of unpushed `origin/master` (Resume Point item 12); `ADR-002` moved from `.project/staging/` to `.project/engineering/decisions/ADR-002.md`; a new `ADR-003` (permission_version JWT-staleness check) exists in `.project/staging/` with `review_status: changes_requested` and unresolved reviewer concerns (Resume Point item 13). No new features built this pass, just reconciliation.)*
+*Prior update: 2026-08-10 (`/catchup` audit: found and documented that the BOM-diff editor, invite rate-limiting, CSV export loading/error state, Cloudflare Pages deploy pipeline, and the FK-nullable migration were all fully implemented but never committed — see the uncommitted-state note in Current Development Snapshot and Resume Point item 11. No new features built this pass, just reconciliation.)*
+*Prior update: 2026-07-18 (invite-user/manage-roles admin, proposal inbox UI, item detail page, frontend pagination, CSV export, Sentry, generic audit triggers, and auth-endpoint rate limiting all shipped and verified via a live Docker E2E smoke test; Current Development Snapshot, Resume Point, Non-Negotiable Security Rules, and Feature Build Order checklists reconciled against actual code). Update this document whenever an architectural decision changes.*
