@@ -18,3 +18,4 @@ goods) and the recursive multi-level Bill of Materials that links them
 - STORY-007
 - STORY-008
 - STORY-056
+- STORY-069

@@ -16,3 +16,4 @@ the item and deduct every component from stock in one transaction.
 - STORY-015
 - STORY-016
 - STORY-048
+- STORY-068

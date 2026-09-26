@@ -2,6 +2,8 @@
 
 Purpose: give AI coding agents the minimal, actionable guidance needed to be productive in this repo.
 
+**New session? Read the "▶ Start Here — Next Session" section in [claude.md](claude.md#L1) first** — current sprint, what to do next, and how to work with the product owner.
+
 Quick start
 - Install: `pnpm install`
 - Run dev (client + server): `pnpm run dev`
@@ -27,8 +29,10 @@ Agent rules (short)
 - Prefer RPCs for multi-step DB mutations; changes touching data integrity must be implemented as PG functions and tested.
 - Link rather than copy: reference existing docs (e.g., [claude.md](claude.md#L1)) instead of embedding large sections.
 - Before changing architecture or core patterns, propose a short plan and get confirmation.
-- Run `pnpm run test` and `pnpm run typecheck` locally before committing changes.
-- Create changes on a feature branch named `ai/<short-descriptor>` and open a PR with a short summary and test evidence.
+- Run `pnpm run typecheck` and lint locally before committing; `pnpm run test`'s integration tests need Docker + `pnpm run db:up`, which usually isn't running on the owner's PC — then rely on CI, which runs the full suite against a real Supabase on every PR.
+- Create changes on a feature branch named `ai/<short-descriptor>` and open a PR with a short summary and test evidence. **Commit, push and merge only after the product owner's explicit OK.**
+- Backlog changes (`.project/`): propose as numbered V-items and apply only after approval; AI-written stories/epics/ADRs go to `.project/staging/`; never delete a story/epic (mark `archived`/`superseded`); add a `## In gewone taal` section to every item.
+- Stock-touching RPCs must reuse the advisory-lock helpers `stock_lock_key`/`lock_stock_keys` (see claude.md, STORY-043).
 
 If missing context
 - Ask one concise clarifying question (tenant, API contract, expected behavior) rather than guessing.
@@ -57,4 +61,4 @@ Current repo state
 - Phases 1-5 plus most of Phase 6 (polish/production-readiness) are implemented end-to-end, but see the git-history note above — several of these "done" items aren't actually committed yet. See `claude.md`'s Resume Point (item 11) for the commit plan, plus the remaining open items (Cloudflare/Supabase account setup + staging smoke test, a real Sentry DSN, `item_change`/`process_change` proposal payload schemas).
 - `README.md` is stale (still describes Phase-0 bootstrap state) — don't rely on it, use this file and `claude.md` instead.
 
-Last updated: 2026-09-26
+Last updated: 2026-09-26 (end of day — handoff in claude.md ▶ Start Here)

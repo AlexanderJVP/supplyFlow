@@ -115,6 +115,93 @@ per-tenant configuration and self-service admin as first-class concerns.
 
 ---
 
+## ▶ Start Here — Next Session (handoff written 2026-09-26)
+
+Read this first. It says where the work stands and what to do next; the
+sections below are the detailed history and spec.
+
+### Where we are
+
+- **Sprint 1** (`.project/scrum/sprints/sprint-1.md`): 2026-09-28 →
+  2026-10-11, capacity 10 points, created in `planning` status — the owner
+  sets it to `active` when work starts.
+
+  | Story | Pts | State |
+  |---|---|---|
+  | `STORY-067` test July work against a real DB | 1 | **done** — CI run `36265866576`: server 79/79, client 2/2 |
+  | `STORY-027` CI/CD runs green | 3 | **done** — pushed; CI + Deploy green (deploy steps skipped until secrets exist) |
+  | `STORY-043` stock can go negative on concurrent completion | 3 | **merged** — PR #1 squash-merged as `b09c280` after green CI (run `36266776698`). Status still `backlog` in its file: the owner sets it to `done` in the board app (so `done_at` is stamped) |
+  | `STORY-028` Cloudflare/Supabase/GitHub accounts + secrets | 3 | **not started — only the owner can do this** (needs their accounts) |
+
+- `master` = `origin/master`; nothing unpushed. `.claude/` is deliberately
+  untracked (personal settings); `.kilo/` is excluded via
+  `.git/info/exclude`.
+- The backlog was fully reviewed and reorganised on 2026-09-26. Order and
+  reasoning: `.project/scrum/product-backlog.md`; phases:
+  `.project/product/roadmap.md`; decisions: ADR-001…004 in
+  `.project/engineering/decisions/` (all **accepted**).
+
+### Do next, in this order
+
+1. **STORY-043 is merged** (PR #1, `b09c280`). Remind the owner to set it
+   to `done` in the board app if they haven't — that leaves only
+   `STORY-028` open in sprint 1.
+2. **Sprint 1 → `active`** in the board app if the owner hasn't yet.
+3. **STORY-028 with the owner, step by step** (they aren't technical —
+   explain each click in plain Dutch): create the Cloudflare Pages project
+   `manufacturing-platform-client`; a Cloudflare API token; GitHub repo
+   secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
+   `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL`,
+   `VITE_SENTRY_DSN`; Worker secrets via `wrangler secret put`
+   (`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `ADMIN_SECRET`,
+   `ALLOWED_ORIGIN`, `ADMIN_ORIGIN`); a production Supabase project with
+   the migrations applied. Never ask the owner to paste secrets into chat
+   — they enter them in the dashboards, or run `wrangler secret put ...`
+   in their own terminal (not via `!` in this chat, which would put the
+   typed value in the transcript).
+4. Then `STORY-029` (first real staging deploy + smoke test), then plan
+   **sprint 2**: start with `STORY-068` (bug: completing an order also
+   deducts the components *inside* sub-assemblies — bolts are counted
+   twice), then backlog block 2 (`STORY-061`, `062`, `055`, `056`, `058`
+   …) which is the product's core idea.
+5. `STORY-068` and `STORY-069` are accepted (in `product/stories/`). Still
+   waiting in `.project/staging/` for the owner's acceptance in the board
+   app: the later-phase epics/stories (EPIC-005, 008, 009, 011, 012 and
+   their stories). Don't move them yourself.
+
+### How to work with this product owner
+
+- **Language:** Dutch, plain words, no jargon — explain any technical term.
+  Every story/epic has a `## In gewone taal` section; keep adding it.
+- **Backlog changes:** propose them as a numbered list (V1, V2, … — the
+  2026-09-26 session reached V39), each with what/why/which file, most
+  important first. **Apply nothing until the owner approves** ("V1, V3
+  ok"). Never delete a story or epic (use `archived`/`superseded` + a
+  reason); new items get the next free ID (next: `STORY-070`,
+  `EPIC-013`, `ADR-005`) and go to `.project/staging/`. After applying,
+  list the changes per file and end with: applied / still open / new
+  questions.
+- **Git:** work on a branch `ai/<short-name>` and open a PR; CI runs the
+  integration tests against a real Supabase (Docker is usually *not*
+  running on the owner's PC, so local runs are typecheck/lint/client
+  tests only). **Commit, push and merge only after the owner's explicit
+  OK.** The pre-commit hook runs eslint + prettier on staged files.
+- **Board app statuses:** editing `status:` in a file by hand works, but
+  only a change made in the board app stamps `started_at`/`done_at`.
+- The owner wants honest findings: if something looks wrong (like the
+  double-deduction bug), say so and propose a story — don't silently fix
+  outside the current story's scope.
+
+### Open loose ends (small, not on the sprint)
+
+- `README.md` is still the Phase-0 text — misleading as a repo entry point.
+- `POST /production/:id/cancel` returns a generic 500 (not 409/404) for an
+  order that can't be cancelled (noted in `STORY-048`).
+- `.project/scrum/sprints/sprint-1.md` still has the placeholder goal
+  "_Nog te bepalen._" — suggested goal: *"De code is getest, staat op
+  GitHub, de workflows draaien groen, en voorraad kan niet meer negatief
+  worden."*
+
 ## Current Development Snapshot
 
 Phases 1-5 are real, tested, and verified end-to-end — including a full live Docker Compose smoke test (provision tenant → items → BOM line → stock → production order → proposal submit/approve, all through the actual containers, 2026-07-18). Most of Phase 6 (polish/production-readiness) is now done too. See Resume Point below for what's left.
@@ -148,6 +235,8 @@ Phases 1-5 are real, tested, and verified end-to-end — including a full live D
 - `README.md` is also stale — it still describes Phase-0/bootstrap state ("ask the agent to scaffold client and server") and doesn't mention any shipped feature. Not the source of truth (this file is), but misleading as a repo entry point.
 
 ### Resume Point
+
+> **Superseded for day-to-day use by *▶ Start Here* above (2026-09-26).** The list below is the pre-2026-09-26 history; the live plan is `.project/scrum/product-backlog.md`.
 
 Phases 1-5 are done, plus most of Phase 6. What's left, ordered by what actually blocks a real deployment vs. polish:
 
@@ -1015,7 +1104,7 @@ $$;
 
 ---
 
-*Last updated: 2026-09-26 (added the Product Vision section from the product owner — Russian-doll BOM and in-app change proposals as the core idea, with current gaps against it; recorded that the previously uncommitted work is now committed but unpushed/untested. The `.project/` backlog was also reviewed and reorganized the same day — see `.project/scrum/product-backlog.md` and `.project/product/roadmap.md`.)*
+*Last updated: 2026-09-26, end of day (added *▶ Start Here* handoff: sprint 1 status, next steps, how to work with the owner; STORY-043 built in PR #1; STORY-068/069 proposed). Earlier the same day: (added the Product Vision section from the product owner — Russian-doll BOM and in-app change proposals as the core idea, with current gaps against it; recorded that the previously uncommitted work is now committed but unpushed/untested. The `.project/` backlog was also reviewed and reorganized the same day — see `.project/scrum/product-backlog.md` and `.project/product/roadmap.md`.)*
 *Prior update: 2026-08-30 (`/catchup` audit: re-verified the 2026-08-10 findings are still accurate 20 days later — the same working-tree changes are still uncommitted (43 days now), typecheck still clean, integration tests still blocked on Docker/Supabase not running. New findings this pass: local `master` is 12 commits ahead of unpushed `origin/master` (Resume Point item 12); `ADR-002` moved from `.project/staging/` to `.project/engineering/decisions/ADR-002.md`; a new `ADR-003` (permission_version JWT-staleness check) exists in `.project/staging/` with `review_status: changes_requested` and unresolved reviewer concerns (Resume Point item 13). No new features built this pass, just reconciliation.)*
 *Prior update: 2026-08-10 (`/catchup` audit: found and documented that the BOM-diff editor, invite rate-limiting, CSV export loading/error state, Cloudflare Pages deploy pipeline, and the FK-nullable migration were all fully implemented but never committed — see the uncommitted-state note in Current Development Snapshot and Resume Point item 11. No new features built this pass, just reconciliation.)*
 *Prior update: 2026-07-18 (invite-user/manage-roles admin, proposal inbox UI, item detail page, frontend pagination, CSV export, Sentry, generic audit triggers, and auth-endpoint rate limiting all shipped and verified via a live Docker E2E smoke test; Current Development Snapshot, Resume Point, Non-Negotiable Security Rules, and Feature Build Order checklists reconciled against actual code). Update this document whenever an architectural decision changes.*
