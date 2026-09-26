@@ -1,4 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
+import { isAxiosError } from 'axios';
+import type { InsufficientStockError } from '@manufacturing/shared';
 
 import Pager from '../../components/Pager';
 import { useCursorPagination } from '../../hooks/useCursorPagination';
@@ -35,6 +37,20 @@ export default function ProductionOrders() {
     () => new Map((items ?? []).map((item) => [item.id, item])),
     [items]
   );
+
+  // A 409 means stock ran out -- possibly because another order completed
+  // first and used the same components. Show exactly what is missing.
+  const completeShortfalls = useMemo(() => {
+    const err = completeOrder.error;
+    if (
+      isAxiosError<InsufficientStockError>(err) &&
+      err.response?.status === 409 &&
+      err.response.data?.code === 'insufficient_stock'
+    ) {
+      return err.response.data.shortfalls;
+    }
+    return null;
+  }, [completeOrder.error]);
 
   const [itemId, setItemId] = useState('');
   const [quantity, setQuantity] = useState('1');
@@ -142,11 +158,21 @@ export default function ProductionOrders() {
         onNext={() => pagination.goNext(data?.nextCursor)}
       />
 
-      {completeOrder.isError && (
-        <p style={{ color: 'red' }}>
-          Failed to complete order — check that all components have enough
-          stock.
-        </p>
+      {completeShortfalls && (
+        <div style={{ color: 'red' }}>
+          <p>Not enough stock to complete this order:</p>
+          <ul>
+            {completeShortfalls.map((s) => (
+              <li key={s.item_id}>
+                {itemsById.get(s.item_id)?.name ?? s.item_id}: need {s.required}
+                , have {s.available} (short {s.shortfall})
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {completeOrder.isError && !completeShortfalls && (
+        <p style={{ color: 'red' }}>Failed to complete order.</p>
       )}
 
       <h2 style={{ marginTop: 32 }}>New production order</h2>

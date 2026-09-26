@@ -41,8 +41,20 @@ export const CanProduceShortfallSchema = z.object({
   shortfall: z.number(),
 });
 
+// Body of a 409 from POST /production/:id/complete when stock ran out
+// (including when a concurrent completion used it up first): every short
+// component at once, same shape as can-produce's rows.
+export const InsufficientStockErrorSchema = z.object({
+  error: z.string(),
+  code: z.literal('insufficient_stock'),
+  shortfalls: z.array(CanProduceShortfallSchema),
+});
+
 export type CreateProductionOrder = z.infer<typeof CreateProductionOrderSchema>;
 export type ProductionOrder = z.infer<typeof ProductionOrderSchema>;
 export type CanProduceRequest = z.infer<typeof CanProduceRequestSchema>;
 export type CanProduceQuery = z.infer<typeof CanProduceQuerySchema>;
 export type CanProduceShortfall = z.infer<typeof CanProduceShortfallSchema>;
+export type InsufficientStockError = z.infer<
+  typeof InsufficientStockErrorSchema
+>;
