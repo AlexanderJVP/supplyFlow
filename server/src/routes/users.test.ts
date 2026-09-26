@@ -5,6 +5,7 @@ import {
   cleanupTenant,
   createRestrictedUser,
   createUserForRole,
+  deleteAuthUser,
   integrationEnv,
   NO_PERMISSIONS,
   provisionTestTenant,
@@ -15,7 +16,8 @@ import {
 
 async function inviteUser(
   accessToken: string,
-  body: { email: string; name: string; role_id: string }
+  body: { email: string; name: string; role_id: string },
+  ip?: string
 ) {
   return app.fetch(
     new Request('http://localhost/api/users/invite', {
@@ -23,6 +25,7 @@ async function inviteUser(
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${accessToken}`,
+        ...(ip ? { 'CF-Connecting-IP': ip } : {}),
       },
       body: JSON.stringify(body),
     }),
@@ -104,6 +107,45 @@ describe('users routes (integration, requires local Supabase)', () => {
     });
     expect(response.status).toBe(403);
   });
+
+  it('rate-limits invites to 10 attempts per IP per hour', async () => {
+    // 11 invite calls plus 10 cleanup deletes is more round-trips than the
+    // default 5s test timeout comfortably covers under full-suite load.
+    const ip = '10.2.0.99';
+    const invitedUserIds: string[] = [];
+
+    for (let i = 0; i < 10; i += 1) {
+      const slug = uniqueSlug('ratelimit-invitee');
+      const response = await inviteUser(
+        tenantA.accessToken,
+        {
+          email: `${slug}@example.test`,
+          name: 'Ratelimit Invitee',
+          role_id: tenantA.role_id,
+        },
+        ip
+      );
+      expect(response.status).toBe(201);
+      const invited = (await response.json()) as { id: string };
+      invitedUserIds.push(invited.id);
+    }
+
+    const eleventh = await inviteUser(
+      tenantA.accessToken,
+      {
+        email: `${uniqueSlug('ratelimit-invitee')}@example.test`,
+        name: 'Should be rate-limited',
+        role_id: tenantA.role_id,
+      },
+      ip
+    );
+    expect(eleventh.status).toBe(429);
+    expect(eleventh.headers.get('Retry-After')).toBeTruthy();
+
+    for (const id of invitedUserIds) {
+      await deleteAuthUser(id);
+    }
+  }, 20000);
 
   it('rejects inviting a user with a role_id from another tenant', async () => {
     const slug = uniqueSlug('cross-tenant-invitee');

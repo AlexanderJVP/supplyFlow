@@ -4,6 +4,7 @@ import { zValidator } from '@hono/zod-validator';
 import { InviteUserSchema, UpdateUserRoleSchema } from '@manufacturing/shared';
 import { createAdminClient } from '../lib/supabase';
 import { requireAuth, requirePermission } from '../middleware/auth';
+import { rateLimit } from '../middleware/rateLimit';
 import type { AppEnv } from '../types';
 
 export const usersRouter = new Hono<AppEnv>();
@@ -24,6 +25,9 @@ usersRouter.get('/', requirePermission('admin.manage_users'), async (c) => {
 usersRouter.post(
   '/invite',
   requirePermission('admin.manage_users'),
+  // Sends a real email per call via Supabase Auth, same abuse shape as
+  // registration (POST /api/admin/tenants) -- rate-limit it the same way.
+  rateLimit({ keyPrefix: 'users:invite', windowMs: 60 * 60 * 1000, max: 10 }),
   zValidator('json', InviteUserSchema),
   async (c) => {
     const body = c.req.valid('json');
