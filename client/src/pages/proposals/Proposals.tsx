@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import type { ProposalType } from '@manufacturing/shared';
+import type { BomChangePayload, ProposalType } from '@manufacturing/shared';
 
 import { useAuth } from '../../context/AuthContext';
 import { usePermission } from '../../hooks/usePermission';
@@ -9,22 +9,13 @@ import {
   useReviewProposal,
   useSubmitProposal,
 } from '../../hooks/useProposals';
+import BomChangeEditor from './BomChangeEditor';
 
 const PROPOSAL_TYPES: ProposalType[] = [
   'bom_change',
   'item_change',
   'process_change',
 ];
-
-const BOM_CHANGE_PLACEHOLDER = JSON.stringify(
-  {
-    create: [{ parent_item_id: '...', child_item_id: '...', quantity: 1 }],
-    update: [],
-    delete: [],
-  },
-  null,
-  2
-);
 
 function ReviewControls({ proposalId }: { proposalId: string }) {
   const reviewProposal = useReviewProposal();
@@ -82,6 +73,8 @@ export default function Proposals() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [payloadText, setPayloadText] = useState('{}');
+  const [bomChangePayload, setBomChangePayload] =
+    useState<BomChangePayload | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
   async function handleCreate(e: FormEvent) {
@@ -94,11 +87,26 @@ export default function Proposals() {
     }
 
     let payload: Record<string, unknown>;
-    try {
-      payload = JSON.parse(payloadText);
-    } catch {
-      setFormError('Payload must be valid JSON.');
-      return;
+    if (type === 'bom_change') {
+      if (
+        !bomChangePayload ||
+        (bomChangePayload.create.length === 0 &&
+          bomChangePayload.update.length === 0 &&
+          bomChangePayload.delete.length === 0)
+      ) {
+        setFormError(
+          'Pick an item and stage at least one BOM change (add, edit, or remove a line).'
+        );
+        return;
+      }
+      payload = bomChangePayload;
+    } else {
+      try {
+        payload = JSON.parse(payloadText);
+      } catch {
+        setFormError('Payload must be valid JSON.');
+        return;
+      }
     }
 
     try {
@@ -111,6 +119,7 @@ export default function Proposals() {
       setTitle('');
       setDescription('');
       setPayloadText('{}');
+      setBomChangePayload(null);
     } catch {
       setFormError('Failed to create proposal.');
     }
@@ -211,26 +220,27 @@ export default function Proposals() {
             </div>
 
             <div style={{ marginBottom: 8 }}>
-              <label>
-                Payload (JSON)
-                <textarea
-                  value={payloadText}
-                  onChange={(e) => setPayloadText(e.target.value)}
-                  rows={8}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    fontFamily: 'monospace',
-                  }}
-                />
-              </label>
-              {type === 'bom_change' && (
-                <p style={{ fontSize: 12, color: '#555' }}>
-                  For bom_change, shape:{' '}
-                  <code style={{ whiteSpace: 'pre' }}>
-                    {BOM_CHANGE_PLACEHOLDER}
-                  </code>
-                </p>
+              {type === 'bom_change' ? (
+                <>
+                  <label style={{ display: 'block', marginBottom: 4 }}>
+                    BOM changes
+                  </label>
+                  <BomChangeEditor onPayloadChange={setBomChangePayload} />
+                </>
+              ) : (
+                <label>
+                  Payload (JSON)
+                  <textarea
+                    value={payloadText}
+                    onChange={(e) => setPayloadText(e.target.value)}
+                    rows={8}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      fontFamily: 'monospace',
+                    }}
+                  />
+                </label>
               )}
             </div>
 

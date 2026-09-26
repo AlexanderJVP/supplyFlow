@@ -220,4 +220,71 @@ describe('bom routes (integration, requires local Supabase)', () => {
     expect(frameNode).toMatchObject({ depth: 1, quantity: 1 });
     expect(boltNode).toMatchObject({ depth: 2, quantity: 4 });
   });
+
+  it('returns direct (non-recursive) bom lines with their own id for a parent item', async () => {
+    const frame = await createItem(tenant.accessToken, {
+      name: 'Lines Frame',
+      type: 'sub_assembly',
+    });
+    const bolt = await createItem(tenant.accessToken, {
+      name: 'Lines Bolt',
+      type: 'component',
+    });
+    const nut = await createItem(tenant.accessToken, {
+      name: 'Lines Nut',
+      type: 'component',
+    });
+
+    const created = await createBomLine(
+      tenant.accessToken,
+      frame.id,
+      bolt.id,
+      2
+    );
+    expect(created.status).toBe(201);
+    const createdBody = (await created.json()) as { id: string };
+    expect(
+      (await createBomLine(tenant.accessToken, frame.id, nut.id, 3)).status
+    ).toBe(201);
+
+    const response = await app.fetch(
+      new Request(`http://localhost/api/bom/${frame.id}/lines`, {
+        headers: { Authorization: `Bearer ${tenant.accessToken}` },
+      }),
+      integrationEnv
+    );
+    expect(response.status).toBe(200);
+    const lines = (await response.json()) as Array<{
+      id: string;
+      child_item_id: string;
+      quantity: number;
+    }>;
+    expect(lines).toHaveLength(2);
+    const boltLine = lines.find((l) => l.child_item_id === bolt.id);
+    expect(boltLine).toMatchObject({ id: createdBody.id, quantity: 2 });
+  });
+
+  it("does not return another tenant's bom lines (RLS tenant isolation)", async () => {
+    const frame = await createItem(tenant.accessToken, {
+      name: 'Isolated Lines Frame',
+      type: 'sub_assembly',
+    });
+    const bolt = await createItem(tenant.accessToken, {
+      name: 'Isolated Lines Bolt',
+      type: 'component',
+    });
+    expect(
+      (await createBomLine(tenant.accessToken, frame.id, bolt.id, 1)).status
+    ).toBe(201);
+
+    const response = await app.fetch(
+      new Request(`http://localhost/api/bom/${frame.id}/lines`, {
+        headers: { Authorization: `Bearer ${otherTenant.accessToken}` },
+      }),
+      integrationEnv
+    );
+    expect(response.status).toBe(200);
+    const lines = (await response.json()) as unknown[];
+    expect(lines).toHaveLength(0);
+  });
 });

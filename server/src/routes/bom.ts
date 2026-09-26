@@ -20,6 +20,27 @@ bomRouter.get('/:itemId/tree', async (c) => {
   return c.json(data);
 });
 
+// Direct (non-recursive) BOM lines for one parent item, including each
+// line's own id -- unlike /tree (the recursive CTE, which aggregates
+// quantities across levels and never exposes bom_lines.id), this is what a
+// bom_change proposal editor needs to target existing lines for update/delete.
+bomRouter.get('/:itemId/lines', async (c) => {
+  const itemId = c.req.param('itemId');
+
+  const { data, error } = await c
+    .get('supabase')
+    .from('bom_lines')
+    .select(
+      'id, tenant_id, parent_item_id, child_item_id, quantity, notes, created_at'
+    )
+    .eq('parent_item_id', itemId)
+    .eq('tenant_id', c.get('user').tenantId)
+    .order('created_at');
+
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json(data);
+});
+
 bomRouter.post(
   '/',
   requirePermission('bom.edit'),
