@@ -1,0 +1,728 @@
+* { box-sizing: border-box; }
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  margin: 0;
+  background: #f4f5f7;
+  color: #172b4d;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background: #fff;
+  border-bottom: 1px solid #ddd;
+}
+
+header h1 {
+  font-size: 1.2rem;
+  margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+#filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.75rem 1.5rem 0;
+}
+
+#filter-bar input,
+#filter-bar select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+#search-input {
+  min-width: 200px;
+  flex: 1;
+  max-width: 320px;
+}
+
+#board {
+  display: flex;
+  gap: 1rem;
+  padding: 1.5rem;
+  overflow-x: auto;
+  align-items: flex-start;
+}
+
+#status-line {
+  padding: 0 1.5rem 1rem;
+  color: #888;
+  font-size: 0.85rem;
+  min-height: 1.2em;
+}
+
+.column {
+  background: #ebecf0;
+  border-radius: 8px;
+  padding: 0.75rem;
+  min-width: 240px;
+  flex: 1;
+}
+
+.column.over-wip h2 {
+  color: #bf2600;
+}
+
+.column h2 {
+  font-size: 0.9rem;
+  margin: 0 0 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 40px;
+  border-radius: 6px;
+  transition: background-color 0.1s ease;
+}
+
+.card-list.drag-over {
+  background-color: rgba(0, 82, 204, 0.12);
+  outline: 2px dashed #0052cc;
+  outline-offset: 2px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  cursor: grab;
+}
+
+.card:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.card.dragging {
+  opacity: 0.4;
+}
+
+.card-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.card-meta {
+  font-size: 0.75rem;
+  color: #666;
+  margin-top: 0.25rem;
+  text-transform: capitalize;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.modal-overlay.hidden {
+  display: none;
+}
+
+.modal-box {
+  background: #fff;
+  border-radius: 8px;
+  padding: 1.5rem;
+  width: 480px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.modal-box h2 {
+  margin-top: 0;
+  font-size: 1.05rem;
+}
+
+.modal-box form label {
+  display: block;
+  margin-bottom: 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #44546f;
+}
+
+.modal-box form input,
+.modal-box form select,
+.modal-box form textarea {
+  width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.section-header-inline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 1rem 0 0.5rem;
+}
+
+.section-header-inline h3 {
+  font-size: 0.85rem;
+  margin: 0;
+  color: #44546f;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+#story-tasks-list .empty {
+  color: #888;
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.task-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  margin-bottom: 0.4rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.task-item:hover {
+  border-color: #0052cc;
+}
+
+.task-item .task-title {
+  font-weight: 600;
+}
+
+.task-item .task-meta {
+  color: #666;
+  text-transform: capitalize;
+}
+
+.commit-trail-list .empty {
+  color: #888;
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.commit-trail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  margin-bottom: 0.3rem;
+  font-size: 0.78rem;
+}
+
+.commit-trail-item .commit-hash {
+  font-family: monospace;
+  font-weight: 600;
+}
+
+.commit-trail-item .commit-source {
+  color: #666;
+}
+
+button {
+  cursor: pointer;
+  padding: 0.4rem 0.9rem;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  background: #fff;
+  font-size: 0.85rem;
+}
+
+button[type="submit"] {
+  background: #0052cc;
+  color: #fff;
+  border-color: #0052cc;
+}
+
+#sprints,
+#epics,
+#dependencies,
+#engineering,
+#analytics,
+#history,
+#staging {
+  margin: 0 1.5rem 2rem;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+}
+
+#architecture-content {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.adr-item {
+  border: 1px solid #eee;
+  border-radius: 4px;
+  padding: 0.4rem 0.6rem;
+  margin-bottom: 0.4rem;
+  cursor: pointer;
+}
+
+.adr-item:hover {
+  border-color: #0052cc;
+}
+
+.adr-item-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+}
+
+.adr-item-body {
+  display: none;
+  margin-top: 0.5rem;
+}
+
+.adr-item-body.open {
+  display: block;
+}
+
+#adr-list .empty {
+  color: #888;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+#milestones-list .empty,
+#lessons-list .empty {
+  color: #888;
+  font-size: 0.85rem;
+  margin: 0 0 0.5rem;
+}
+
+#velocity-content .empty {
+  color: #888;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.velocity-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.velocity-label {
+  width: 90px;
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.velocity-bar-track {
+  flex: 1;
+  background: #ebecf0;
+  border-radius: 4px;
+  height: 14px;
+  overflow: hidden;
+  position: relative;
+}
+
+.velocity-bar-fill {
+  background: #0052cc;
+  height: 100%;
+  border-radius: 4px 0 0 4px;
+}
+
+.velocity-row.no-committed .velocity-bar-track {
+  background: repeating-linear-gradient(45deg, #f0f0f0, #f0f0f0 6px, #e6e6e6 6px, #e6e6e6 12px);
+}
+
+.velocity-numbers {
+  width: 90px;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.velocity-avg {
+  font-size: 0.85rem;
+  margin: 0 0 0.75rem;
+  color: #44546f;
+}
+
+.history-entry {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 0.5rem 0;
+}
+
+.history-entry:last-child {
+  border-bottom: none;
+}
+
+.history-entry-heading {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.history-entry-body {
+  white-space: pre-wrap;
+  font-size: 0.8rem;
+  color: #444;
+  margin: 0.25rem 0 0;
+}
+
+.inline-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0.5rem 0 1.25rem;
+  max-width: 480px;
+}
+
+.inline-add-form input,
+.inline-add-form textarea {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+
+.inline-add-form button {
+  align-self: flex-start;
+}
+
+#dependencies-content .empty {
+  color: #888;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.dependency-warning-box {
+  border: 1px solid #ffbdad;
+  background: #fff5f5;
+  border-radius: 6px;
+  padding: 0.6rem 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+.dependency-warning-box h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  color: #bf2600;
+}
+
+.dependency-warning-box ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+}
+
+.dependency-edge-list {
+  font-size: 0.8rem;
+}
+
+.dependency-edge-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.dependency-edge-row.not-done {
+  color: #bf2600;
+}
+
+#sprints-list .empty {
+  color: #888;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.sprint-card {
+  border: 1px solid #eee;
+  border-radius: 6px;
+  padding: 0.6rem 1rem;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.sprint-card:hover {
+  border-color: #0052cc;
+}
+
+.sprint-card.over-capacity .card-meta {
+  color: #bf2600;
+  font-weight: 600;
+}
+
+.sprint-card-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+#sprint-stories-summary {
+  font-size: 0.8rem;
+}
+
+#sprint-stories-summary .empty {
+  color: #888;
+  margin: 0;
+}
+
+#sprint-stories-summary .sprint-story-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.hint {
+  font-size: 0.75rem;
+  color: #888;
+  margin: 0.5rem 0 0;
+}
+
+.section-header,
+.staging-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.section-header h2,
+.staging-header h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+#staging-list .empty,
+#epics-list .empty {
+  color: #888;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.epic-card {
+  border: 1px solid #eee;
+  border-radius: 6px;
+  padding: 0.6rem 1rem;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.epic-card:hover {
+  border-color: #0052cc;
+}
+
+.epic-card-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.staging-card {
+  border: 1px solid #eee;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.staging-card-header {
+  font-size: 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+  margin-bottom: 0.5rem;
+}
+
+.staging-body {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 0.85rem;
+  background: #f8f8f8;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  margin: 0.5rem 0;
+}
+
+.staging-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.reject-btn {
+  color: #bf2600;
+  border-color: #bf2600;
+}
+
+.accept-btn {
+  background: #00875a;
+  color: #fff;
+  border-color: #00875a;
+}
+
+.proposal-type-badge {
+  display: inline-block;
+  background: #ebecf0;
+  color: #44546f;
+  border-radius: 3px;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 600;
+}
+
+/* Flags a staging proposal that will land straight in "Done" the moment
+   it's accepted (reverse-engineered "already built" stories) — shown on
+   the card itself so that's clear before clicking Accept, not just after
+   on the board. */
+.proposal-done-badge {
+  display: inline-block;
+  background: #e3fcef;
+  color: #00875a;
+  border: 1px solid #00875a;
+  border-radius: 3px;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.review-note-flag {
+  background: #fffae6;
+  border: 1px solid #ff8b00;
+  border-radius: 4px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+  margin: 0.5rem 0;
+}
+
+.review-note-badge {
+  display: inline-block;
+  background: #ff8b00;
+  color: #fff;
+  border-radius: 3px;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-right: 0.4rem;
+}
+
+.review-note-form {
+  margin: 0.5rem 0;
+}
+
+.review-note-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 0.85rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.4rem 0.6rem;
+  resize: vertical;
+}
+
+.review-note-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.review-note-save-btn {
+  color: #ff8b00;
+  border-color: #ff8b00;
+}
+
+.review-note-clear-btn {
+  color: #888;
+}
+
+#audit-list .empty {
+  color: #888;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.audit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.3rem 0.4rem;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 0.78rem;
+}
+
+.audit-timestamp {
+  color: #888;
+  font-variant-numeric: tabular-nums;
+}
+
+.audit-agent {
+  font-weight: 600;
+}
+
+.audit-approved {
+  margin-left: auto;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+}
+
+.audit-row.approved .audit-approved {
+  color: #00875a;
+}
+
+.audit-row.rejected .audit-approved {
+  color: #bf2600;
+}

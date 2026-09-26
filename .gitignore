@@ -17,3 +17,7 @@ npm-debug.log*
 pnpm-debug.log*
 # keep lockfiles
 !pnpm-lock.yaml
+
+.project/people/
+app/node_modules/
+app/.env

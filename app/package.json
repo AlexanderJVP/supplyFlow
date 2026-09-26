@@ -1,0 +1,16 @@
+{
+  "name": "scrum-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local visualization layer for the AI-native agile project OS. The UI only calls the engine (via the server API) — it never touches the .project files directly.",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "test:engine": "node test-engine.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "gray-matter": "^4.0.3"
+  }
+}

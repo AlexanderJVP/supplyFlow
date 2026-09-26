@@ -1,0 +1,342 @@
+{
+  "title": "Manufacturing Operations Platform — Domain Model",
+  "boundedContexts": [
+    { "id": "identity_access", "name": "Identity & Access", "color": "#eef2ff", "status": "built" },
+    { "id": "catalog", "name": "Item Catalog & BOM", "color": "#fef3c7", "status": "built" },
+    { "id": "inventory", "name": "Inventory", "color": "#dcfce7", "status": "built" },
+    { "id": "production", "name": "Production", "color": "#fee2e2", "status": "built" },
+    { "id": "workflow", "name": "Workflow & Approvals", "color": "#ede9fe", "status": "built" },
+    { "id": "audit", "name": "Audit", "color": "#f1f5f9", "status": "built" },
+    { "id": "jobs_reservations", "name": "Background Jobs & Reservations", "color": "#fff7ed", "status": "proposed" },
+    { "id": "warehouse_ops", "name": "Multi-Location Warehouse Ops", "color": "#fdf2f8", "status": "proposed" }
+  ],
+  "entities": [
+    {
+      "id": "tenant",
+      "name": "⚠ Tenant (aggregate root, inferred)",
+      "stereotype": "aggregateRoot",
+      "boundedContext": "identity_access",
+      "aggregateId": "tenant",
+      "status": "built",
+      "attributes": [
+        { "name": "id", "type": "UUID", "key": "PK" },
+        { "name": "name", "type": "text", "key": "" },
+        { "name": "slug", "type": "text", "key": "UK" },
+        { "name": "is_active", "type": "boolean", "key": "" },
+        { "name": "plan", "type": "text", "key": "" },
+        { "name": "created_at", "type": "timestamptz", "key": "" }
+      ]
+    },
+    {
+      "id": "role",
+      "name": "⚠ Role (aggregate root, inferred)",
+      "stereotype": "aggregateRoot",
+      "boundedContext": "identity_access",
+      "aggregateId": "role",
+      "status": "built",
+      "attributes": [
+        { "name": "id", "type": "UUID", "key": "PK" },
+        { "name": "tenant_id", "type": "UUID", "key": "FK" },
+        { "name": "name", "type": "text", "key": "" },
+        { "name": "permissions", "type": "jsonb", "key": "" }
+      ]
+    },
+    {
+      "id": "profile",
+      "name": "⚠ Profile (aggregate root, inferred)",
+      "stereotype": "aggregateRoot",
+      "boundedContext": "identity_access",
+      "aggregateId": "profile",
+      "status": "built",
+      "attributes": [
+        { "name": "id", "type": "UUID", "key": "PK" },
+        { "name": "tenant_id", "type": "UUID", "key": "FK" },
+        { "name": "name", "type": "text", "key": "" },
+        { "name": "role_id", "type": "UUID", "key": "FK" },
+        { "name": "is_active", "type": "boolean", "key": "" },
+        { "name": "created_at", "type": "timestamptz", "key": "" },
+        { "name": "⚠ permission_version (proposed, ADR-003, not built — no per-attribute status field, see notes)", "type": "integer, default 1", "key": "" }
+      ]
+    },
+    {
+      "id": "item",
+      "name": "⚠ Item (aggregate root, inferred)",
+      "stereotype": "aggregateRoot",
+      "boundedContext": "catalog",
+      "aggregateId": "item",
+      "status": "built",
+      "attributes": [
+        { "name": "id", "type": "UUID", "key": "PK" },
+        { "name": "tenant_id", "type": "UUID", "key": "FK" },
+        { "name": "sku", "type": "text", "key": "UK" },
+        { "name": "name", "type": "text", "key": "" },
+        { "name": "description", "type": "text", "key": "" },
+        { "name": "type", "type": "item_type (enum: component, sub_assembly, finished_good)", "key": "" },
+        { "name": "unit_of_measure", "type": "text", "key": "" },
+        { "name": "reorder_point", "type": "numeric", "key": "" },
+        { "name": "image_url", "type": "text", "key": "" },
+        { "name": "is_archived", "type": "boolean", "key": "" },
+        { "name": "created_by", "type": "UUID", "key": "FK" },
+        { "name": "created_at", "type": "timestamptz", "key": "" },
+        { "name": "updated_at", "type": "timestamptz", "key": "" }
+      ]
+    },
+    {
+      "id": "bom_line",
+      "name": "BomLine",
+      "stereotype": "entity",
+      "boundedContext": "catalog",
+      "aggregateId": "item",
+      "status": "built",
+      "attributes": [
+        { "name": "id", "type": "UUID", "key": "PK" },
+        { "name": "tenant_id", "type": "UUID", "key": "FK" },
+        { "name": "parent_item_id", "type": "UUID", "key": "FK" },
+        { "name": "child_item_id", "type": "UUID", "key": "FK" },
+        { "name": "quantity", "type": "numeric (> 0)", "key": "" },
+        { "name": "notes", "type": "text", "key": "" },
+        { "name": "created_at", "type": "timestamptz", "key": "" }
+      ]
+    },
+    {
+      "id": "stock_ledger",
+      "name": "⚠ StockLedger (aggregate root, inferred)",
+      "stereotype": "aggregateRoot",
+      "boundedContext": "inventory",
+      "aggregateId": "stock_ledger",
+      "status": "built",
+      "attributes": [
+        { "name": "id", "type": "UUID", "key": "PK" },
+        { "name": "tenant_id", "type": "UUID", "key": "FK" },
+        { "name": "item_id", "type": "UUID", "key": "FK" },
+        { "name": "quantity_delta", "type": "numeric (+in / -out)", "key": "" },
+        { "name": "reason", "type": "ledger_reason (enum: received, consumed, adjusted, produced, shipped, returned, wasted; ⚠ ADR-002 proposes adding moved, counted — not built, no per-attribute status field)", "key": "" },
+        { "name": "reference_type", "type": "text", "key": "" },
+        { "name": "reference_id", "type": "UUID", "key": "" },
+        { "name": "user_id", "type": "UUID", "key": "FK" },
+        { "name": "notes", "type": "text", "key": "" },
+        { "name": "created_at", "type": "timestamptz", "key": "" },
+        { "name": "⚠ location_id (proposed, ADR-002, not built — no per-attribute status field, see notes)", "type": "UUID, nullable", "key": "FK" }
+      ]
+    },
+    {
+      "id": "production_order",
+      "name": "⚠ ProductionOrder (aggregate root, inferred)",
+      "stereotype": "aggregateRoot",
+      "boundedContext": "production",
+      "aggregateId": "production_order",
+      "status": "built",
+      "attributes": [
+        { "name": "id", "type": "UUID", "key": "PK" },
+        { "name": "tenant_id", "type": "UUID", "key": "FK" },
+        { "name": "item_id", "type": "UUID", "key": "FK" },
+        { "name": "quantity", "type": "numeric (> 0)", "key": "" },
+        { "name": "status", "type": "production_status (enum: draft, in_progress, completed, cancelled)", "key": "" },
+        { "name": "notes", "type": "text", "key": "" },
+        { "name": "started_at", "type": "timestamptz", "key": "" },
+        { "name": "completed_at", "type": "timestamptz", "key": "" },
+        { "name": "created_by", "type": "UUID", "key": "FK" },
+        { "name": "created_at", "type": "timestamptz", "key": "" },
+        { "name": "updated_at", "type": "timestamptz", "key": "" }
+      ]
+    },
+    {
+      "id": "proposal",
+      "name": "⚠ Proposal (aggregate root, inferred)",
+      "stereotype": "aggregateRoot",
+      "boundedContext": "workflow",
+      "aggregateId": "proposal",
+      "status": "built",
+      "attributes": [
+        { "name": "id", "type": "UUID", "key": "PK" },
+        { "name": "tenant_id", "type": "UUID", "key": "FK" },
+        { "name": "type", "type": "proposal_type (enum: bom_change, item_change, process_change)", "key": "" },
+        { "name": "title", "type": "text", "key": "" },
+        { "name": "description", "type": "text", "key": "" },
+        { "name": "payload", "type": "jsonb", "key": "" },
+        { "name": "status", "type": "proposal_status (enum: draft, pending_review, approved, rejected, withdrawn)", "key": "" },
+        { "name": "created_by", "type": "UUID", "key": "FK" },
+        { "name": "created_at", "type": "timestamptz", "key": "" },
+        { "name": "updated_at", "type": "timestamptz", "key": "" }
+      ]
+    },
+    {
+      "id": "proposal_review",
+      "name": "ProposalReview",
+      "stereotype": "entity",
+      "boundedContext": "workflow",
+      "aggregateId": "proposal",
+      "status": "built",
+      "attributes": [
+        { "name": "id", "type": "UUID", "key": "PK" },
+        { "name": "proposal_id", "type": "UUID", "key": "FK" },
+        { "name": "reviewer_id", "type": "UUID", "key": "FK" },
+        { "name": "action", "type": "text (check: approved | rejected | requested_changes)", "key": "" },
+        { "name": "notes", "type": "text", "key": "" },
+        { "name": "created_at", "type": "timestamptz", "key": "" }
+      ]
+    },
+    {
+      "id": "workflow_step",
+      "name": "WorkflowStep",
+      "stereotype": "entity",
+      "boundedContext": "workflow",
+      "aggregateId": "",
+      "status": "built",
+      "attributes": [
+        { "name": "id", "type": "UUID", "key": "PK" },
+        { "name": "tenant_id", "type": "UUID", "key": "FK" },
+        { "name": "proposal_type", "type": "proposal_type (enum)", "key": "" },
+        { "name": "step_order", "type": "int", "key": "" },
+        { "name": "role_id", "type": "UUID", "key": "FK" }
+      ]
+    },
+    {
+      "id": "audit_log",
+      "name": "AuditLog",
+      "stereotype": "entity",
+      "boundedContext": "audit",
+      "aggregateId": "",
+      "status": "built",
+      "attributes": [
+        { "name": "id", "type": "UUID", "key": "PK" },
+        { "name": "tenant_id", "type": "UUID (no DB FK — set by trigger, RLS-enforced only)", "key": "" },
+        { "name": "table_name", "type": "text", "key": "" },
+        { "name": "record_id", "type": "UUID", "key": "" },
+        { "name": "action", "type": "text (check: INSERT | UPDATE | DELETE)", "key": "" },
+        { "name": "old_data", "type": "jsonb", "key": "" },
+        { "name": "new_data", "type": "jsonb", "key": "" },
+        { "name": "user_id", "type": "UUID (no DB FK)", "key": "" },
+        { "name": "created_at", "type": "timestamptz", "key": "" }
+      ]
+    },
+    {
+      "id": "job",
+      "name": "Job",
+      "stereotype": "aggregateRoot",
+      "boundedContext": "jobs_reservations",
+      "aggregateId": "job",
+      "status": "proposed",
+      "attributes": [
+        { "name": "id", "type": "UUID", "key": "PK" },
+        { "name": "tenant_id", "type": "UUID", "key": "FK" },
+        { "name": "type", "type": "text (csv_import | pdf_generation | label_printing)", "key": "" },
+        { "name": "status", "type": "text", "key": "" },
+        { "name": "result_url", "type": "text (points at Cloudflare R2 output)", "key": "" },
+        { "name": "error", "type": "text", "key": "" },
+        { "name": "created_by", "type": "UUID", "key": "FK" },
+        { "name": "…other fields not confirmed (created_at etc. not spelled out in ADR-001)", "type": "?", "key": "" }
+      ]
+    },
+    {
+      "id": "stock_reservation",
+      "name": "StockReservation",
+      "stereotype": "entity",
+      "boundedContext": "jobs_reservations",
+      "aggregateId": "",
+      "status": "proposed",
+      "attributes": [
+        { "name": "id", "type": "UUID", "key": "PK" },
+        { "name": "tenant_id", "type": "UUID", "key": "FK" },
+        { "name": "item_id", "type": "UUID", "key": "FK" },
+        { "name": "quantity", "type": "numeric", "key": "" },
+        { "name": "production_order_id", "type": "UUID", "key": "FK" },
+        { "name": "…full schema not yet designed, see ADR-001 Consequences", "type": "?", "key": "" }
+      ]
+    },
+    {
+      "id": "warehouse",
+      "name": "Warehouse",
+      "stereotype": "aggregateRoot",
+      "boundedContext": "warehouse_ops",
+      "aggregateId": "warehouse",
+      "status": "proposed",
+      "attributes": [
+        { "name": "id", "type": "UUID", "key": "PK" },
+        { "name": "tenant_id", "type": "UUID", "key": "FK" },
+        { "name": "…other fields not confirmed (e.g. name — ADR-002 only specifies 'one row per building/site' and tenant scoping)", "type": "?", "key": "" }
+      ]
+    },
+    {
+      "id": "location",
+      "name": "Location",
+      "stereotype": "entity",
+      "boundedContext": "warehouse_ops",
+      "aggregateId": "warehouse",
+      "status": "proposed",
+      "attributes": [
+        { "name": "id", "type": "UUID", "key": "PK" },
+        { "name": "tenant_id", "type": "UUID", "key": "FK" },
+        { "name": "warehouse_id", "type": "UUID", "key": "FK" },
+        { "name": "…other fields not confirmed (e.g. name/bin code — ADR-002 only specifies 'bins/zones within a warehouse')", "type": "?", "key": "" }
+      ]
+    },
+    {
+      "id": "fulfillment_order",
+      "name": "FulfillmentOrder",
+      "stereotype": "aggregateRoot",
+      "boundedContext": "warehouse_ops",
+      "aggregateId": "fulfillment_order",
+      "status": "proposed",
+      "attributes": [
+        { "name": "id", "type": "UUID", "key": "PK" },
+        { "name": "tenant_id", "type": "UUID", "key": "FK" },
+        { "name": "status", "type": "text (picked | packed | shipped, per ADR-002)", "key": "" },
+        { "name": "…full schema not yet designed (line items / item refs unspecified), see ADR-002", "type": "?", "key": "" }
+      ]
+    }
+  ],
+  "relationships": [
+    { "from": "tenant", "to": "role", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "defines", "status": "built" },
+    { "from": "tenant", "to": "profile", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "employs", "status": "built" },
+    { "from": "role", "to": "profile", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "assigned to", "status": "built" },
+    { "from": "tenant", "to": "item", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "owns", "status": "built" },
+    { "from": "profile", "to": "item", "fromCardinality": "zero-or-one", "toCardinality": "zero-or-many", "label": "created", "status": "built" },
+    { "from": "tenant", "to": "bom_line", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "scopes", "status": "built" },
+    { "from": "item", "to": "bom_line", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "is parent (BOM) of", "status": "built" },
+    { "from": "item", "to": "bom_line", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "is child component (BOM) in", "status": "built" },
+    { "from": "tenant", "to": "stock_ledger", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "scopes", "status": "built" },
+    { "from": "item", "to": "stock_ledger", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "has movements", "status": "built" },
+    { "from": "profile", "to": "stock_ledger", "fromCardinality": "zero-or-one", "toCardinality": "zero-or-many", "label": "recorded", "status": "built" },
+    { "from": "tenant", "to": "production_order", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "scopes", "status": "built" },
+    { "from": "item", "to": "production_order", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "produced as", "status": "built" },
+    { "from": "profile", "to": "production_order", "fromCardinality": "zero-or-one", "toCardinality": "zero-or-many", "label": "created", "status": "built" },
+    { "from": "tenant", "to": "proposal", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "scopes", "status": "built" },
+    { "from": "profile", "to": "proposal", "fromCardinality": "zero-or-one", "toCardinality": "zero-or-many", "label": "authored", "status": "built" },
+    { "from": "proposal", "to": "proposal_review", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "reviewed via", "status": "built" },
+    { "from": "profile", "to": "proposal_review", "fromCardinality": "zero-or-one", "toCardinality": "zero-or-many", "label": "reviewed", "status": "built" },
+    { "from": "tenant", "to": "workflow_step", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "configures", "status": "built" },
+    { "from": "role", "to": "workflow_step", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "approves at step", "status": "built" },
+    { "from": "tenant", "to": "job", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "scopes", "status": "proposed" },
+    { "from": "profile", "to": "job", "fromCardinality": "zero-or-one", "toCardinality": "zero-or-many", "label": "submits", "status": "proposed" },
+    { "from": "tenant", "to": "stock_reservation", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "scopes", "status": "proposed" },
+    { "from": "item", "to": "stock_reservation", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "is reserved via", "status": "proposed" },
+    { "from": "production_order", "to": "stock_reservation", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "claims via", "status": "proposed" },
+    { "from": "tenant", "to": "warehouse", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "owns", "status": "proposed" },
+    { "from": "warehouse", "to": "location", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "contains", "status": "proposed" },
+    { "from": "tenant", "to": "location", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "scopes", "status": "proposed" },
+    { "from": "location", "to": "stock_ledger", "fromCardinality": "zero-or-one", "toCardinality": "zero-or-many", "label": "tracks movements at", "status": "proposed" },
+    { "from": "tenant", "to": "fulfillment_order", "fromCardinality": "exactly-one", "toCardinality": "zero-or-many", "label": "owns", "status": "proposed" }
+  ],
+  "repositories": [
+    { "id": "tenant_repo", "name": "⚠ TenantRepository (inferred)", "aggregateId": "tenant", "methods": ["provision(tenant, adminUser)", "findBySlug(slug)"], "description": "Mapped from server/src/routes/tenants.ts — no literal Repository class exists; Supabase admin client + provision_tenant RPC play this role.", "status": "built" },
+    { "id": "role_repo", "name": "⚠ RoleRepository (inferred)", "aggregateId": "role", "methods": ["list(tenantId)", "create(role)", "update(id, permissions)"], "description": "Mapped from server/src/routes/roles.ts.", "status": "built" },
+    { "id": "profile_repo", "name": "⚠ ProfileRepository (inferred)", "aggregateId": "profile", "methods": ["list(tenantId)", "invite(email, roleId)", "reassignRole(id, roleId)"], "description": "Mapped from server/src/routes/users.ts.", "status": "built" },
+    { "id": "item_repo", "name": "⚠ ItemRepository (inferred)", "aggregateId": "item", "methods": ["findById(id)", "list(tenantId, cursor)", "create(item)", "update(id, patch)", "archive(id)"], "description": "Mapped from server/src/routes/items.ts. BomLine has no separate repository — CLAUDE.md itself notes BOM lines are only reachable through this item aggregate, indirectly via bom_change proposals or bom.ts's tree/add endpoints.", "status": "built" },
+    { "id": "stock_ledger_repo", "name": "⚠ StockLedgerRepository (inferred)", "aggregateId": "stock_ledger", "methods": ["append(entry)", "listByItem(itemId)", "currentStock(itemId)"], "description": "Mapped from server/src/routes/inventory.ts. Deliberately has no update/delete methods — matches Non-Negotiable Security Rule 3 (append-only ledger).", "status": "built" },
+    { "id": "production_order_repo", "name": "⚠ ProductionOrderRepository (inferred)", "aggregateId": "production_order", "methods": ["findById(id)", "list(tenantId, cursor)", "create(order)", "complete(id)"], "description": "Mapped from server/src/routes/production.ts; complete() wraps the complete_production_order RPC.", "status": "built" },
+    { "id": "proposal_repo", "name": "⚠ ProposalRepository (inferred)", "aggregateId": "proposal", "methods": ["findById(id)", "list(tenantId)", "create(proposal)", "submit(id)", "review(id, action)"], "description": "Mapped from server/src/routes/proposals.ts.", "status": "built" }
+  ],
+  "factories": [
+    { "id": "tenant_factory", "name": "⚠ TenantFactory (inferred)", "aggregateId": "tenant", "description": "Wraps the provision_tenant RPC: creates the tenant + default Admin role + first profile + one workflow_step per proposal type, atomically, in a single transaction.", "status": "built" }
+  ],
+  "services": [
+    { "id": "production_completion_service", "name": "⚠ ProductionCompletionService (inferred)", "boundedContext": "production", "description": "Coordinates the complete_production_order RPC: produces the finished item and deducts every recursively-required BOM component from stock_ledger in one transaction. Spans the Item, ProductionOrder and StockLedger aggregates, so it can't live on any single one of them.", "status": "built" },
+    { "id": "workflow_review_service", "name": "⚠ WorkflowReviewService (inferred)", "boundedContext": "workflow", "description": "Coordinates submit_proposal / review_proposal RPCs: walks the tenant's workflow_steps chain matching the reviewer's actual role_id, and on final approval of a bom_change proposal atomically applies the payload via apply_bom_change_payload. Spans the Proposal and Item aggregates.", "status": "built" },
+    { "id": "permission_sync_service", "name": "⚠ PermissionSyncService (inferred)", "boundedContext": "identity_access", "description": "When a Role's permissions are edited, pushes the new permissions snapshot into every current member's Supabase app_metadata (JWT claims) via roles.ts, since permissions are baked into the token at invite time rather than looked up live.", "status": "built" },
+    { "id": "job_dispatch_service", "name": "JobDispatchService", "boundedContext": "jobs_reservations", "description": "Proposed in ADR-001: one shared Cloudflare Queue + one generic consumer Worker that dispatches on a job.type field (csv_import | pdf_generation | label_printing), writing output to R2 and updating the jobs table for client polling (GET /jobs/:id). Explicitly one shared pattern instead of three bespoke ones.", "status": "proposed" },
+    { "id": "stock_reservation_service", "name": "StockReservationService", "boundedContext": "jobs_reservations", "description": "Proposed in ADR-001: wraps the reserve_stock / release_reservation RPC pair using row-level locking (SELECT ... FOR UPDATE), following the same pattern as complete_production_order. Spans the Item and ProductionOrder aggregates. Detailed schema not yet designed — see ADR-001 Consequences.", "status": "proposed" },
+    { "id": "stock_move_service", "name": "StockMoveService", "boundedContext": "warehouse_ops", "description": "Proposed in ADR-002: wraps the move_stock RPC — one atomic transaction writing a negative stock_ledger row at the source location and a positive one at the destination, reason 'moved'. Never a raw location field update.", "status": "proposed" }
+  ],
+  "domainEvents": []
+}

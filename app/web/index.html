@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Scrum Board</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Scrum Board</h1>
+    <div class="header-actions">
+      <button id="git-sync-btn" type="button" title="Scan git log voor TASK-XXX referenties en werk taken bij">Git sync</button>
+      <button id="refresh-btn" type="button">Ververs</button>
+    </div>
+  </header>
+
+  <div id="filter-bar">
+    <input id="search-input" type="text" placeholder="Zoek op titel of id..." />
+    <select id="epic-filter">
+      <option value="">Alle epics</option>
+    </select>
+    <select id="priority-filter">
+      <option value="">Alle prioriteiten</option>
+      <option value="low">low</option>
+      <option value="medium">medium</option>
+      <option value="high">high</option>
+    </select>
+    <select id="sprint-filter">
+      <option value="">Alle sprints</option>
+    </select>
+    <button id="clear-filters-btn" type="button">Wis filters</button>
+  </div>
+
+  <main id="board"></main>
+  <p id="status-line"></p>
+
+  <section id="sprints">
+    <div class="section-header">
+      <h2>Sprints</h2>
+      <button id="new-sprint-btn" type="button">+ Nieuwe sprint</button>
+    </div>
+    <div id="sprints-list"></div>
+  </section>
+
+  <section id="epics">
+    <div class="section-header">
+      <h2>Epics</h2>
+      <button id="new-epic-btn" type="button">+ Nieuwe epic</button>
+    </div>
+    <div id="epics-list"></div>
+  </section>
+
+  <section id="dependencies">
+    <div class="section-header">
+      <h2>Afhankelijkheden</h2>
+      <button id="refresh-dependencies-btn" type="button">Ververs</button>
+    </div>
+    <div id="dependencies-content"></div>
+  </section>
+
+  <section id="validation">
+    <div class="section-header">
+      <h2>Validatie</h2>
+      <button id="refresh-validation-btn" type="button">Ververs</button>
+    </div>
+    <p class="hint">Bestanden met kapotte YAML-frontmatter of een ontbrekend/verkeerd getypeerd verplicht veld verschijnen hier — ze blijven wel gewoon bestaan, dit is puur een overzicht zodat een probleem niet stilzwijgend verdwijnt.</p>
+    <div id="validation-content"></div>
+  </section>
+
+  <section id="engineering">
+    <div class="section-header">
+      <h2>Engineering</h2>
+      <button id="refresh-engineering-btn" type="button">Ververs</button>
+    </div>
+    <div class="section-header-inline"><h3>Architecture</h3></div>
+    <pre id="architecture-content" class="staging-body">Laden...</pre>
+    <div class="section-header-inline"><h3>Decision records (ADRs)</h3></div>
+    <div id="adr-list"></div>
+  </section>
+
+  <section id="analytics">
+    <div class="section-header">
+      <h2>Analytics</h2>
+      <div>
+        <button id="save-velocity-snapshot-btn" type="button">Momentopname opslaan</button>
+        <button id="refresh-velocity-btn" type="button">Ververs</button>
+      </div>
+    </div>
+
+    <div class="section-header-inline"><h3>Velocity</h3></div>
+    <div id="velocity-content"></div>
+
+    <div class="section-header-inline"><h3>Cycle time</h3></div>
+    <p class="hint">Tijd tussen "backlog verlaten" en "done" per story/taak, automatisch bijgehouden zodra de status wijzigt — niets om zelf in te vullen.</p>
+    <div id="cycle-time-content"></div>
+
+    <div class="section-header-inline"><h3>Forecast</h3></div>
+    <p class="hint">Projectie op basis van de gemiddelde velocity hierboven (pas beschikbaar vanaf 2 afgeronde sprints) — een inschatting, geen belofte.</p>
+    <div id="backlog-forecast-content"></div>
+    <div id="epic-forecast-content"></div>
+  </section>
+
+  <section id="history">
+    <div class="section-header">
+      <h2>History</h2>
+      <button id="refresh-history-btn" type="button">Ververs</button>
+    </div>
+
+    <div class="section-header-inline"><h3>Milestones</h3></div>
+    <div id="milestones-list"></div>
+    <form id="milestone-form" class="inline-add-form">
+      <input name="title" type="text" placeholder="Titel" required />
+      <textarea name="body" rows="2" placeholder="Beschrijving (optioneel)"></textarea>
+      <button type="submit">+ Milestone toevoegen</button>
+    </form>
+
+    <div class="section-header-inline"><h3>Lessons Learned</h3></div>
+    <div id="lessons-list"></div>
+    <form id="lesson-form" class="inline-add-form">
+      <input name="title" type="text" placeholder="Titel" required />
+      <textarea name="body" rows="2" placeholder="Beschrijving (optioneel)"></textarea>
+      <button type="submit">+ Lesson toevoegen</button>
+    </form>
+  </section>
+
+  <section id="staging">
+    <div class="staging-header">
+      <h2>Staging — voorstellen ter review</h2>
+    </div>
+    <div id="staging-list"></div>
+
+    <div class="section-header-inline">
+      <h3>Audit log</h3>
+      <button id="refresh-audit-btn" type="button">Ververs</button>
+    </div>
+    <p class="hint">Elke Accepteren/Verwerpen-beslissing wordt hier gelogd — een log, geen bron van waarheid, puur voor traceerbaarheid van wat AI-rollen voorstelden en of een mens dat goedkeurde.</p>
+    <div id="audit-list"></div>
+  </section>
+
+  <div id="sprint-modal-overlay" class="modal-overlay hidden">
+    <div id="sprint-modal" class="modal-box">
+      <h2 id="sprint-modal-title">Sprint</h2>
+      <form id="sprint-form">
+        <label>Start
+          <input name="start" type="date" />
+        </label>
+        <label>Einde
+          <input name="end" type="date" />
+        </label>
+        <label>Status
+          <input name="status" type="text" placeholder="bv. planning, active, done" />
+        </label>
+        <label>Capaciteit (story points)
+          <input name="capacity" type="number" min="0" step="1" />
+        </label>
+        <div class="section-header-inline">
+          <h3>Stories in deze sprint</h3>
+        </div>
+        <div id="sprint-stories-summary"></div>
+        <p class="hint">Wijzig het Sprint-veld op een story om ze aan deze sprint toe te voegen of te verwijderen.</p>
+        <div class="modal-actions">
+          <button type="button" id="sprint-cancel-btn">Annuleren</button>
+          <button type="submit">Opslaan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="epic-modal-overlay" class="modal-overlay hidden">
+    <div id="epic-modal" class="modal-box">
+      <h2 id="epic-modal-title">Epic</h2>
+      <form id="epic-form">
+        <label>Titel
+          <input name="title" type="text" required />
+        </label>
+        <label>Status
+          <input name="status" type="text" placeholder="bv. backlog, in-progress, done" />
+        </label>
+        <label>Beschrijving (Markdown)
+          <textarea name="body" rows="8"></textarea>
+        </label>
+        <div class="modal-actions">
+          <button type="button" id="epic-cancel-btn">Annuleren</button>
+          <button type="submit">Opslaan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div id="modal" class="modal-box">
+      <h2 id="modal-title">Story</h2>
+      <form id="story-form">
+        <label>Titel
+          <input name="title" type="text" />
+        </label>
+        <label>Status
+          <select name="status" id="status-select"></select>
+        </label>
+        <label>Prioriteit
+          <select name="priority">
+            <option value="low">low</option>
+            <option value="medium">medium</option>
+            <option value="high">high</option>
+          </select>
+        </label>
+        <label>Story points
+          <input name="story_points" type="number" min="0" step="1" />
+        </label>
+        <label>Epic
+          <input name="epic" type="text" />
+        </label>
+        <label>Sprint
+          <input name="sprint" type="text" />
+        </label>
+        <label>Afhankelijk van (komma-gescheiden story-id's)
+          <input name="dependencies" type="text" placeholder="bv. STORY-001, STORY-003" />
+        </label>
+        <label>Inhoud (Markdown)
+          <textarea name="body" rows="10"></textarea>
+        </label>
+        <div class="section-header-inline">
+          <h3>Taken</h3>
+          <button type="button" id="add-task-btn">+ Taak</button>
+        </div>
+        <div id="story-tasks-list"></div>
+        <div class="section-header-inline">
+          <h3>Gekoppelde commits</h3>
+        </div>
+        <div id="story-commits-list" class="commit-trail-list"></div>
+        <div class="modal-actions">
+          <button type="button" id="cancel-btn">Annuleren</button>
+          <button type="submit">Opslaan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="task-modal-overlay" class="modal-overlay hidden">
+    <div id="task-modal" class="modal-box">
+      <h2 id="task-modal-title">Taak</h2>
+      <form id="task-form">
+        <label>Titel
+          <input name="title" type="text" required />
+        </label>
+        <label>Status
+          <input name="status" type="text" placeholder="bv. backlog, in-progress, done" />
+        </label>
+        <label>Type
+          <select name="type">
+            <option value="task">task</option>
+            <option value="bug">bug</option>
+          </select>
+        </label>
+        <label>Commit
+          <input name="commit" type="text" placeholder="git commit hash (optioneel)" />
+        </label>
+        <label>Beschrijving (Markdown)
+          <textarea name="body" rows="6"></textarea>
+        </label>
+        <div class="modal-actions">
+          <button type="button" id="task-cancel-btn">Annuleren</button>
+          <button type="submit">Opslaan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
