@@ -2,7 +2,7 @@
 id: STORY-027
 title: CI/CD deploy workflow builds client with production env vars
 epic: EPIC-007-deployment-cicd
-status: in-progress
+status: done
 sprint: sprint-1
 story_points: 3
 priority: high
@@ -54,5 +54,10 @@ silently doing nothing or shipping a client pointed at dev config.
   - Done when a push to `master` produces a green `Deploy` run (the
     deploy steps may still be skipped until `STORY-028` provides the
     secrets — but the workflow itself must not error).
+  - **Done 2026-09-26:** all local commits pushed (`2a102ce..49be0fd`);
+    `Deploy` run `36265866587` green in 43s (client + server build OK,
+    both deploy steps skipped as expected without `CLOUDFLARE_API_TOKEN`),
+    and `CI` run `36265866576` green. Actual deploying is verified by
+    `STORY-028`/`STORY-029`.
 
 ## Tasks

@@ -2,7 +2,7 @@
 id: STORY-067
 title: Verify the July work against a live Supabase (integration tests)
 epic: EPIC-007-deployment-cicd
-status: backlog
+status: done
 sprint: sprint-1
 story_points: 1
 priority: high
@@ -30,7 +30,16 @@ works, not just that it compiles.
 
 ## Acceptance Criteria
 
-- Docker Desktop running; `pnpm run db:up` (and `pnpm run db:reset` so the
+- **Done 2026-09-26 — verified in CI instead of locally.** The goal is
+  the full suite green against a *real* database; the first CI run after
+  pushing (`CI` run `36265866576`, commit `49be0fd`) starts a fresh local
+  Supabase on GitHub's runner, applies every migration (including
+  `20260718000004_profiles_fk_set_null.sql`), and ran typecheck, all
+  tests and lint green: **client 2/2, server 79/79 across 10 test files**
+  (incl. the modified `bom.test.ts` and `users.test.ts`). No failures, so
+  no bug stories were needed. Evidence: https://github.com/AlexanderJVP/supplyFlow/actions/runs/36265866576
+- *Original criteria, kept for reference:* Docker Desktop running;
+  `pnpm run db:up` (and `pnpm run db:reset` so the
   new migration `20260718000004_profiles_fk_set_null.sql` is applied).
 - `pnpm run typecheck` and `pnpm run test` both pass — including the
   modified `bom.test.ts` and `users.test.ts` and all 9 server integration
