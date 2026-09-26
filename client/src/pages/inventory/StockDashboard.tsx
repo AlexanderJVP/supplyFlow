@@ -7,8 +7,8 @@ import {
   useCurrentStock,
   useCurrentStockPage,
 } from '../../hooks/useInventory';
+import { useDownloadCsv } from '../../hooks/useDownloadCsv';
 import { usePermission } from '../../hooks/usePermission';
-import { downloadCsv } from '../../lib/downloadCsv';
 import MovementHistory from './MovementHistory';
 
 const LEDGER_REASONS = [
@@ -30,6 +30,11 @@ export default function StockDashboard() {
   const { data: allStock } = useCurrentStock();
   const adjustStock = useAdjustStock();
   const canExport = usePermission('inventory.export');
+  const {
+    download: downloadExport,
+    isDownloading,
+    error: exportError,
+  } = useDownloadCsv();
 
   const [historyItem, setHistoryItem] = useState<{
     id: string;
@@ -79,12 +84,15 @@ export default function StockDashboard() {
         <h1>Inventory</h1>
         {canExport && (
           <button
-            onClick={() => downloadCsv('/inventory/export', 'inventory.csv')}
+            onClick={() => downloadExport('/inventory/export', 'inventory.csv')}
+            disabled={isDownloading}
           >
-            Export CSV
+            {isDownloading ? 'Exporting…' : 'Export CSV'}
           </button>
         )}
       </div>
+
+      {exportError && <p style={{ color: 'red' }}>{exportError}</p>}
 
       {isLoading && <p>Loading…</p>}
       {error && <p style={{ color: 'red' }}>Failed to load stock levels.</p>}

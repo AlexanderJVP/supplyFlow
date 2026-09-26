@@ -12,7 +12,7 @@ import {
   useProductionOrdersPage,
   useStartProductionOrder,
 } from '../../hooks/useProduction';
-import { downloadCsv } from '../../lib/downloadCsv';
+import { useDownloadCsv } from '../../hooks/useDownloadCsv';
 
 export default function ProductionOrders() {
   const { data: items } = useItems();
@@ -20,6 +20,11 @@ export default function ProductionOrders() {
   const { data, isLoading, error } = useProductionOrdersPage(pagination.after);
   const orders = data?.orders;
   const canExport = usePermission('production.view');
+  const {
+    download: downloadExport,
+    isDownloading,
+    error: exportError,
+  } = useDownloadCsv();
 
   const createOrder = useCreateProductionOrder();
   const startOrder = useStartProductionOrder();
@@ -71,12 +76,17 @@ export default function ProductionOrders() {
         <h1>Production Orders</h1>
         {canExport && (
           <button
-            onClick={() => downloadCsv('/production/export', 'production.csv')}
+            onClick={() =>
+              downloadExport('/production/export', 'production.csv')
+            }
+            disabled={isDownloading}
           >
-            Export CSV
+            {isDownloading ? 'Exporting…' : 'Export CSV'}
           </button>
         )}
       </div>
+
+      {exportError && <p style={{ color: 'red' }}>{exportError}</p>}
 
       {isLoading && <p>Loading…</p>}
       {error && (
