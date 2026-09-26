@@ -2,11 +2,15 @@ name: Deploy
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      # `secrets` isn't allowed in step-level `if:` conditions -- expose
+      # presence as a job-level env var and gate the deploy steps on that.
+      HAS_CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -23,19 +27,27 @@ jobs:
         run: pnpm install
 
       - name: Build client
-        run: pnpm --filter client run build
+        working-directory: ./client
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+        run: pnpm run build
 
-      - name: Deploy client (GitHub Pages)
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./client/dist
+      - name: Deploy client (Cloudflare Pages)
+        if: env.HAS_CLOUDFLARE_TOKEN == 'true'
+        working-directory: ./client
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler pages deploy dist --project-name=manufacturing-platform-client
 
       - name: Build server
         run: pnpm --filter server run build || echo 'server build not configured'
 
       - name: Publish Cloudflare Worker
-        if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+        if: env.HAS_CLOUDFLARE_TOKEN == 'true'
         working-directory: ./server
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

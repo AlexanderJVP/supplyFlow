@@ -1,0 +1,9 @@
+name = "manufacturing-platform-client"
+pages_build_output_dir = "dist"
+account_id = "b6698ae660f620cf3fdf9c75c7da5c9d"
+compatibility_date = "2026-06-19"
+
+# Pure static SPA (Vite build) -- no Pages Functions, so no bindings/vars
+# belong here. All VITE_* values are build-time (baked into the bundle by
+# `vite build`, read via import.meta.env) and must be present as shell env
+# vars in CI before the build step runs -- see .github/workflows/deploy.yml.
