@@ -1,17 +1,18 @@
 ---
 id: STORY-056
-title: Where-used view — which products contain this item? (the doll, upwards)
+title: 'Where-used view — which products contain this item? (the doll, upwards)'
 epic: EPIC-002-item-catalog-bom
 status: backlog
-sprint: null
+sprint: sprint-2
 story_points: 3
 priority: high
 origin: ai-generated
 edited: false
 generated_by: claude
-dependencies: [STORY-006, STORY-007]
+dependencies:
+  - STORY-006
+  - STORY-007
 ---
-
 ## In gewone taal
 
 Nu kun je bij een product zien waaruit het bestaat (naar binnen in de

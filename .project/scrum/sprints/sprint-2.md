@@ -2,7 +2,7 @@
 id: sprint-2
 start: '2026-10-12'
 end: '2026-10-25'
-status: planning
+status: active
 capacity: 10
 ---
 # Sprint 2
