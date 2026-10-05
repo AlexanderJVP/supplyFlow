@@ -120,22 +120,42 @@ per-tenant configuration and self-service admin as first-class concerns.
 Read this first. It says where the work stands and what to do next; the
 sections below are the detailed history and spec.
 
-### Where we are
+### Where we are (updated 2026-10-05)
 
 - **Sprint 1** (`.project/scrum/sprints/sprint-1.md`): 2026-09-28 →
-  2026-10-11, capacity 10 points, created in `planning` status — the owner
-  sets it to `active` when work starts.
+  2026-10-11, capacity 10 points. **All four stories are done** — the
+  owner closes the sprint and sets `STORY-028` to `done` in the board app
+  (so `done_at` is stamped); suggested goal text is in *Open loose ends*.
 
   | Story | Pts | State |
   |---|---|---|
   | `STORY-067` test July work against a real DB | 1 | **done** — CI run `36265866576`: server 79/79, client 2/2 |
-  | `STORY-027` CI/CD runs green | 3 | **done** — pushed; CI + Deploy green (deploy steps skipped until secrets exist) |
-  | `STORY-043` stock can go negative on concurrent completion | 3 | **merged** — PR #1 squash-merged as `b09c280` after green CI (run `36266776698`). Status still `backlog` in its file: the owner sets it to `done` in the board app (so `done_at` is stamped) |
-  | `STORY-028` Cloudflare/Supabase/GitHub accounts + secrets | 3 | **not started — only the owner can do this** (needs their accounts) |
+  | `STORY-027` CI/CD runs green | 3 | **done** — pushed; CI + Deploy green |
+  | `STORY-043` stock can go negative on concurrent completion | 3 | **done** — PR #1, `b09c280` |
+  | `STORY-028` Cloudflare/Supabase/GitHub accounts + secrets | 3 | **done 2026-10-05** — see *Production setup* below |
 
-- `master` = `origin/master`; nothing unpushed. `.claude/` is deliberately
-  untracked (personal settings); `.kilo/` is excluded via
-  `.git/info/exclude`.
+- **Production setup (STORY-028, 2026-10-05)** — nothing has been deployed
+  yet; the first push to `master` runs `deploy.yml` for real (`STORY-029`):
+  - Cloudflare Pages project `manufacturing-platform-client` created →
+    `https://manufacturing-platform-client.pages.dev`.
+  - Worker `manufacturing-platform-server` exists (empty, created by the
+    first `wrangler secret put`) → will serve at
+    `https://manufacturing-platform-server.alexander-van-puyenbroeck15.workers.dev`
+    (API under `/api`).
+  - Worker secrets (6): `SUPABASE_URL`, `SUPABASE_ANON_KEY` (was missing
+    from earlier lists — `createUserClient` needs it), `SUPABASE_SERVICE_KEY`,
+    `ADMIN_SECRET`, `ALLOWED_ORIGIN` + `ADMIN_ORIGIN` (both the pages.dev
+    URL; there is no separate admin app).
+  - GitHub repo secrets (5): `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
+    `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL`.
+    `VITE_SENTRY_DSN` deliberately not set yet (Sentry no-ops without it).
+  - Production Supabase project created by the owner and linked locally
+    (`supabase link`); all 12 migrations applied via `supabase db push`
+    (no seed). Auth Site URL + redirect URL (`…pages.dev/**`) set.
+  - The owner keeps `ADMIN_SECRET` and the DB password in their password
+    manager — never ask for them in chat.
+- `.claude/` is deliberately untracked (personal settings); `.kilo/` is
+  excluded via `.git/info/exclude`.
 - The backlog was fully reviewed and reorganised on 2026-09-26. Order and
   reasoning: `.project/scrum/product-backlog.md`; phases:
   `.project/product/roadmap.md`; decisions: ADR-001…004 in
@@ -143,28 +163,17 @@ sections below are the detailed history and spec.
 
 ### Do next, in this order
 
-1. **STORY-043 is merged** (PR #1, `b09c280`). Remind the owner to set it
-   to `done` in the board app if they haven't — that leaves only
-   `STORY-028` open in sprint 1.
-2. **Sprint 1 → `active`** in the board app if the owner hasn't yet.
-3. **STORY-028 with the owner, step by step** (they aren't technical —
-   explain each click in plain Dutch): create the Cloudflare Pages project
-   `manufacturing-platform-client`; a Cloudflare API token; GitHub repo
-   secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
-   `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL`,
-   `VITE_SENTRY_DSN`; Worker secrets via `wrangler secret put`
-   (`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `ADMIN_SECRET`,
-   `ALLOWED_ORIGIN`, `ADMIN_ORIGIN`); a production Supabase project with
-   the migrations applied. Never ask the owner to paste secrets into chat
-   — they enter them in the dashboards, or run `wrangler secret put ...`
-   in their own terminal (not via `!` in this chat, which would put the
-   typed value in the transcript).
-4. Then `STORY-029` (first real staging deploy + smoke test), then plan
-   **sprint 2**: start with `STORY-068` (bug: completing an order also
-   deducts the components *inside* sub-assemblies — bolts are counted
-   twice), then backlog block 2 (`STORY-061`, `062`, `055`, `056`, `058`
-   …) which is the product's core idea.
-5. `STORY-068` and `STORY-069` are accepted (in `product/stories/`). Still
+1. **STORY-029 — first real deploy + smoke test.** Merging the
+   `ai/sprint-1-close` PR pushes to `master` and triggers `deploy.yml` for
+   real. Check the Deploy run, then smoke-test with the owner: provision a
+   tenant via `POST /api/admin/tenants` (the owner sends `X-Admin-Secret`
+   from their own terminal, not via `!`), sign in on the pages.dev site,
+   open a few pages.
+2. Then plan **sprint 2**: start with `STORY-068` (bug: completing an
+   order also deducts the components *inside* sub-assemblies — bolts are
+   counted twice), then backlog block 2 (`STORY-061`, `062`, `055`, `056`,
+   `058` …) which is the product's core idea.
+3. `STORY-068` and `STORY-069` are accepted (in `product/stories/`). Still
    waiting in `.project/staging/` for the owner's acceptance in the board
    app: the later-phase epics/stories (EPIC-005, 008, 009, 011, 012 and
    their stories). Don't move them yourself.
@@ -1104,7 +1113,7 @@ $$;
 
 ---
 
-*Last updated: 2026-09-26, end of day (added *▶ Start Here* handoff: sprint 1 status, next steps, how to work with the owner; STORY-043 built in PR #1; STORY-068/069 proposed). Earlier the same day: (added the Product Vision section from the product owner — Russian-doll BOM and in-app change proposals as the core idea, with current gaps against it; recorded that the previously uncommitted work is now committed but unpushed/untested. The `.project/` backlog was also reviewed and reorganized the same day — see `.project/scrum/product-backlog.md` and `.project/product/roadmap.md`.)*
+*Last updated: 2026-10-05 (STORY-028 done: production Cloudflare/Supabase/GitHub setup recorded in *▶ Start Here*; sprint 1 complete). Before that: 2026-09-26, end of day (added *▶ Start Here* handoff: sprint 1 status, next steps, how to work with the owner; STORY-043 built in PR #1; STORY-068/069 proposed). Earlier the same day: (added the Product Vision section from the product owner — Russian-doll BOM and in-app change proposals as the core idea, with current gaps against it; recorded that the previously uncommitted work is now committed but unpushed/untested. The `.project/` backlog was also reviewed and reorganized the same day — see `.project/scrum/product-backlog.md` and `.project/product/roadmap.md`.)*
 *Prior update: 2026-08-30 (`/catchup` audit: re-verified the 2026-08-10 findings are still accurate 20 days later — the same working-tree changes are still uncommitted (43 days now), typecheck still clean, integration tests still blocked on Docker/Supabase not running. New findings this pass: local `master` is 12 commits ahead of unpushed `origin/master` (Resume Point item 12); `ADR-002` moved from `.project/staging/` to `.project/engineering/decisions/ADR-002.md`; a new `ADR-003` (permission_version JWT-staleness check) exists in `.project/staging/` with `review_status: changes_requested` and unresolved reviewer concerns (Resume Point item 13). No new features built this pass, just reconciliation.)*
 *Prior update: 2026-08-10 (`/catchup` audit: found and documented that the BOM-diff editor, invite rate-limiting, CSV export loading/error state, Cloudflare Pages deploy pipeline, and the FK-nullable migration were all fully implemented but never committed — see the uncommitted-state note in Current Development Snapshot and Resume Point item 11. No new features built this pass, just reconciliation.)*
 *Prior update: 2026-07-18 (invite-user/manage-roles admin, proposal inbox UI, item detail page, frontend pagination, CSV export, Sentry, generic audit triggers, and auth-endpoint rate limiting all shipped and verified via a live Docker E2E smoke test; Current Development Snapshot, Resume Point, Non-Negotiable Security Rules, and Feature Build Order checklists reconciled against actual code). Update this document whenever an architectural decision changes.*
