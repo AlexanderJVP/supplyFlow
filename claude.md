@@ -120,7 +120,30 @@ per-tenant configuration and self-service admin as first-class concerns.
 Read this first. It says where the work stands and what to do next; the
 sections below are the detailed history and spec.
 
-### Where we are (updated 2026-10-05)
+### Where we are (updated 2026-10-05, end of session)
+
+- **LIVE since 2026-10-05 (`STORY-029` done):** site
+  `https://manufacturing-platform-client.pages.dev`, API
+  `https://manufacturing-platform-server.alexander-van-puyenbroeck15.workers.dev/api`.
+  Deploy run `37280956724` green (all steps, incl. Pages + Worker). First
+  tenant provisioned by the owner ("Magazijn Van Puyenbroeck", slug
+  `van-puyenbroeck`); the owner signed in and opened the pages without
+  errors. CORS verified: site origin allowed, unknown origin → 403.
+- **Go-live gotchas (2026-10-05):**
+  - Pages' `wrangler.toml` must **not** contain `account_id` —
+    `wrangler pages deploy` rejects it (fixed in PR #3); CI passes
+    `CLOUDFLARE_ACCOUNT_ID` as env instead. The Worker's toml keeps it.
+  - `SUPABASE_URL` / `VITE_SUPABASE_URL` must be the bare project URL
+    (`https://<ref>.supabase.co`), not the `/rest/v1/` URL some Supabase
+    screens show — that gives `Invalid path specified in request URL`.
+    The client value is public: check it in the built JS bundle.
+  - Production migrations are **manual** today (`supabase db push` from
+    the owner's linked machine) — `STORY-070` proposes automating it.
+  - Auto mode blocks Claude from merging PRs and writing to GitHub/Worker
+    secret stores: the owner runs `! gh pr merge <n> --squash
+    --delete-branch` and secret commands themselves. Long `!` commands
+    get line-wrapped when the owner copies them — keep them short, or use
+    the owner's own PowerShell window.
 
 - **Sprint 1** (`.project/scrum/sprints/sprint-1.md`): 2026-09-28 →
   2026-10-11, capacity 10 points. **All four stories are done** — the
@@ -163,17 +186,17 @@ sections below are the detailed history and spec.
 
 ### Do next, in this order
 
-1. **STORY-029 — first real deploy + smoke test.** Merging the
-   `ai/sprint-1-close` PR pushes to `master` and triggers `deploy.yml` for
-   real. Check the Deploy run, then smoke-test with the owner: provision a
-   tenant via `POST /api/admin/tenants` (the owner sends `X-Admin-Secret`
-   from their own terminal, not via `!`), sign in on the pages.dev site,
-   open a few pages.
-2. Then plan **sprint 2**: start with `STORY-068` (bug: completing an
-   order also deducts the components *inside* sub-assemblies — bolts are
-   counted twice), then backlog block 2 (`STORY-061`, `062`, `055`, `056`,
-   `058` …) which is the product's core idea.
-3. `STORY-068` and `STORY-069` are accepted (in `product/stories/`). Still
+1. Owner, in the board app (`STORY-028`/`029` already set to `done`
+   2026-10-05): close sprint 1 (still `planning`), fill in its goal; accept `STORY-061`, `062`, `056`
+   (and the new `070`, `071`) from `staging/`, then link 061/062/056 to
+   sprint 2.
+2. **Sprint 2** (`.project/scrum/sprints/sprint-2.md`, 2026-10-12 →
+   2026-10-25, 10 pts, `planning`): `STORY-068` (bolts deducted twice —
+   start here), `STORY-061`, `STORY-062`, `STORY-056`. `STORY-055`/`058`
+   (5 pts each) are for sprint 3.
+3. `STORY-071` (GitHub Actions Node 20 / Ubuntu 26) is small and should
+   land before 2026-10-19.
+4. `STORY-068` and `STORY-069` are accepted (in `product/stories/`). Still
    waiting in `.project/staging/` for the owner's acceptance in the board
    app: the later-phase epics/stories (EPIC-005, 008, 009, 011, 012 and
    their stories). Don't move them yourself.
@@ -186,7 +209,7 @@ sections below are the detailed history and spec.
   2026-09-26 session reached V39), each with what/why/which file, most
   important first. **Apply nothing until the owner approves** ("V1, V3
   ok"). Never delete a story or epic (use `archived`/`superseded` + a
-  reason); new items get the next free ID (next: `STORY-070`,
+  reason); new items get the next free ID (next: `STORY-072`,
   `EPIC-013`, `ADR-005`) and go to `.project/staging/`. After applying,
   list the changes per file and end with: applied / still open / new
   questions.
@@ -1113,7 +1136,7 @@ $$;
 
 ---
 
-*Last updated: 2026-10-05 (STORY-028 done: production Cloudflare/Supabase/GitHub setup recorded in *▶ Start Here*; sprint 1 complete). Before that: 2026-09-26, end of day (added *▶ Start Here* handoff: sprint 1 status, next steps, how to work with the owner; STORY-043 built in PR #1; STORY-068/069 proposed). Earlier the same day: (added the Product Vision section from the product owner — Russian-doll BOM and in-app change proposals as the core idea, with current gaps against it; recorded that the previously uncommitted work is now committed but unpushed/untested. The `.project/` backlog was also reviewed and reorganized the same day — see `.project/scrum/product-backlog.md` and `.project/product/roadmap.md`.)*
+*Last updated: 2026-10-05 (live: STORY-029 done, go-live gotchas, STORY-070/071 proposed, sprint 2 planned). Earlier that day: (STORY-028 done: production Cloudflare/Supabase/GitHub setup recorded in *▶ Start Here*; sprint 1 complete). Before that: 2026-09-26, end of day (added *▶ Start Here* handoff: sprint 1 status, next steps, how to work with the owner; STORY-043 built in PR #1; STORY-068/069 proposed). Earlier the same day: (added the Product Vision section from the product owner — Russian-doll BOM and in-app change proposals as the core idea, with current gaps against it; recorded that the previously uncommitted work is now committed but unpushed/untested. The `.project/` backlog was also reviewed and reorganized the same day — see `.project/scrum/product-backlog.md` and `.project/product/roadmap.md`.)*
 *Prior update: 2026-08-30 (`/catchup` audit: re-verified the 2026-08-10 findings are still accurate 20 days later — the same working-tree changes are still uncommitted (43 days now), typecheck still clean, integration tests still blocked on Docker/Supabase not running. New findings this pass: local `master` is 12 commits ahead of unpushed `origin/master` (Resume Point item 12); `ADR-002` moved from `.project/staging/` to `.project/engineering/decisions/ADR-002.md`; a new `ADR-003` (permission_version JWT-staleness check) exists in `.project/staging/` with `review_status: changes_requested` and unresolved reviewer concerns (Resume Point item 13). No new features built this pass, just reconciliation.)*
 *Prior update: 2026-08-10 (`/catchup` audit: found and documented that the BOM-diff editor, invite rate-limiting, CSV export loading/error state, Cloudflare Pages deploy pipeline, and the FK-nullable migration were all fully implemented but never committed — see the uncommitted-state note in Current Development Snapshot and Resume Point item 11. No new features built this pass, just reconciliation.)*
 *Prior update: 2026-07-18 (invite-user/manage-roles admin, proposal inbox UI, item detail page, frontend pagination, CSV export, Sentry, generic audit triggers, and auth-endpoint rate limiting all shipped and verified via a live Docker E2E smoke test; Current Development Snapshot, Resume Point, Non-Negotiable Security Rules, and Feature Build Order checklists reconciled against actual code). Update this document whenever an architectural decision changes.*

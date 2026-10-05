@@ -2,16 +2,18 @@
 id: STORY-029
 title: Real staging deploy dry run & smoke test
 epic: EPIC-007-deployment-cicd
-status: backlog
-sprint: null
+status: done
+sprint: ''
 story_points: 3
 priority: high
 origin: ai-generated
 edited: false
 generated_by: claude
-dependencies: [STORY-028]
+dependencies:
+  - STORY-028
+started_at: '2026-10-05T09:31:04.770Z'
+done_at: '2026-10-05T09:31:04.770Z'
 ---
-
 ## In gewone taal
 
 Een eerste proefversie online zetten en doorklikken of alles werkt zoals lokaal.
