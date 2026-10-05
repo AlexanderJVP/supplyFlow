@@ -39,6 +39,10 @@ export const CanProduceShortfallSchema = z.object({
   required: z.number(),
   available: z.number(),
   shortfall: z.number(),
+  // Only for a short component with its own BOM: how many of it could be
+  // built now from its direct components' stock. Null (can-produce) or
+  // absent (409 body) otherwise.
+  buildable_from_stock: z.number().nullable().optional(),
 });
 
 // Body of a 409 from POST /production/:id/complete when stock ran out

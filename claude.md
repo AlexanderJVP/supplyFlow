@@ -244,7 +244,7 @@ Phases 1-5 are real, tested, and verified end-to-end — including a full live D
 - **Tenant provisioning**: `POST /api/admin/tenants` (`server/src/routes/tenants.ts`), gated by `X-Admin-Secret` and rate-limited to 3/IP/hour (`server/src/middleware/rateLimit.ts`, in-memory fixed-window). Calls `provision_tenant` (tenant + Admin role + profile + one workflow step per proposal type, one transaction), then sets `app_metadata`.
 - **Items**: full CRUD — `GET /` (paginated), `POST /`, `PATCH /:id`, `PATCH /:id/archive` — gated by `items.create`/`items.edit`/`items.archive`, RLS-scoped. Client: `ItemList.tsx` (paged table, inline edit, archive) and `ItemDetail.tsx` (`/items/:id` — full fields, edit/archive, current stock, recent stock movements, embedded BOM tree).
 - **BOM**: `GET /:itemId/tree` (recursive-CTE RPC), `POST /` (requires `bom.edit`). Two DB triggers guard integrity: `prevent_bom_cycle` (self-reference/circular) and `prevent_bom_cross_tenant` (parent/child item must belong to the BOM line's own tenant — RLS doesn't catch this since FK lookups bypass it). `BomTreeViewer.tsx` has a child-item + quantity add form.
-- **Inventory & Production**: paginated list endpoints, `/inventory/alerts` (reorder-point), `/inventory/export` and `/production/export` (CSV, gated by `inventory.export`/`production.view`), `complete_production_order`/`can_produce` RPCs — verified end-to-end for a multi-level bolt→frame→bike BOM. Client pages have paged tables + "Export CSV" buttons.
+- **Inventory & Production**: paginated list endpoints, `/inventory/alerts` (reorder-point), `/inventory/export` and `/production/export` (CSV, gated by `inventory.export`/`production.view`), `complete_production_order`/`can_produce` RPCs — since STORY-068 (2026-10-05) these use only an item's *direct* BOM lines (bike → frames, not the bolts inside them), with a `buildable_from_stock` hint for short sub-assemblies. Client pages have paged tables + "Export CSV" buttons.
 - **Stock locking (STORY-043, 2026-09-26)**: `complete_production_order` now takes a transaction-scoped advisory lock per consumed component *before* re-reading stock, so concurrent completions can't overdraw it (the old `FOR UPDATE` only locked the order row; stock is a derived `SUM`). Shared helpers in migration `20260926000000_stock_lock_helper.sql`: `stock_lock_key(tenant_id, item_id, location_id default null)` and `lock_stock_keys(tenant_id, item_ids[], location_id)` (dedupes, locks in sorted key order). **Every future RPC that reads-then-writes stock (`move_stock`, `reserve_stock`, `post_stock_count`) must reuse these — never invent another key scheme.** Insufficient stock raises SQLSTATE `SK409` with the shortfalls as JSON in `DETAIL`; `POST /production/:id/complete` maps it to HTTP 409 `{ code: 'insufficient_stock', shortfalls }` (`InsufficientStockErrorSchema` in `packages/shared`).
 - **Workflow & Proposals**: `server/src/routes/proposals.ts` (`GET /`, `POST /`, `POST /:id/submit`, `POST /:id/review`) backed by `submit_proposal`/`review_proposal` RPCs, which walk the tenant's `workflow_steps` chain matching the reviewer's actual `profiles.role_id` (not just the coarse `proposals.review` permission) and, on final approval of a `bom_change`, atomically apply the payload via `apply_bom_change_payload`. Client: `Proposals.tsx` — list, submit, approve/reject/request-changes; `bom_change` payloads use a structured line-item editor (`BomChangeEditor.tsx`, added 2026-07-18) scoped to one parent item at a time — shows existing BOM lines (editable quantity/notes, removable) plus a BomTreeViewer-style add-line form, and assembles the `BomChangePayload` automatically. Needed a new read endpoint, `GET /bom/:itemId/lines` (direct, non-recursive lines with their own `id`, unlike the recursive `/tree` RPC which never exposes `bom_lines.id`), backed by `useBomLines()`. `item_change`/`process_change` payloads still use the raw JSON textarea (no defined schema for those types).
 - **Admin — invite user / manage roles** (closed the last Phase 1 gap): `server/src/routes/roles.ts` (list/create/edit; editing a role's permissions pushes the new snapshot to every current member's `app_metadata`, since permissions are baked into the JWT at invite time, not looked up live) and `server/src/routes/users.ts` (list, `POST /invite` via `supabase.auth.admin.inviteUserByEmail`, `PATCH /:id/role` reassignment, also syncing `app_metadata`). Client: `Admin.tsx` (`/admin`) with a `PermissionsEditor` checkbox-grid component, nav-linked only for users who actually hold `admin.manage_users`/`admin.manage_roles`.
@@ -1103,35 +1103,22 @@ WITH RECURSIVE bom_tree AS (
 SELECT * FROM bom_tree;
 ```
 
+**Production consumes only direct components (STORY-068, 2026-10-05).**
+The recursive CTE above is for *viewing* the tree. `can_produce` and
+`complete_production_order` deliberately do **not** recurse: a
+sub-assembly is a stocked item built by its own production order, so
+building a bike consumes frames, never the bolts inside them (that would
+count the bolts twice). Phantom sets that are looked through are a separate
+opt-in (`STORY-069`). Current definition: migration
+`20261005000000_can_produce_direct_components.sql`.
+
 ```sql
--- Check if we can build N units (can we cover BOM requirements from current stock?)
--- This is a PG function called from the API before creating a production order
-CREATE OR REPLACE FUNCTION can_produce(
-  p_item_id UUID,
-  p_quantity NUMERIC,
-  p_tenant_id UUID
-)
-RETURNS TABLE(item_id UUID, required NUMERIC, available NUMERIC, shortfall NUMERIC)
-LANGUAGE sql AS $$
-  WITH RECURSIVE bom AS (
-    SELECT child_item_id AS item_id, quantity * p_quantity AS required
-    FROM bom_lines WHERE parent_item_id = p_item_id AND tenant_id = p_tenant_id
-    UNION ALL
-    SELECT bl.child_item_id, bl.quantity * b.required
-    FROM bom_lines bl JOIN bom AS b ON bl.parent_item_id = b.item_id
-    WHERE bl.tenant_id = p_tenant_id
-  ),
-  stock AS (
-    SELECT item_id, SUM(quantity_delta) AS qty FROM stock_ledger
-    WHERE tenant_id = p_tenant_id GROUP BY item_id
-  )
-  SELECT b.item_id, SUM(b.required) AS required,
-         COALESCE(s.qty, 0) AS available,
-         GREATEST(0, SUM(b.required) - COALESCE(s.qty, 0)) AS shortfall
-  FROM bom b LEFT JOIN stock s ON b.item_id = s.item_id
-  GROUP BY b.item_id, s.qty
-  HAVING SUM(b.required) > 0;
-$$;
+-- Direct components of p_item_id for p_quantity units. For a short
+-- component with its own BOM, buildable_from_stock = how many of it could
+-- be built now from ITS direct components' stock (one level down, floored).
+can_produce(p_item_id uuid, p_quantity numeric, p_tenant_id uuid)
+  RETURNS TABLE(item_id uuid, required numeric, available numeric,
+                shortfall numeric, buildable_from_stock numeric)
 ```
 
 ---
