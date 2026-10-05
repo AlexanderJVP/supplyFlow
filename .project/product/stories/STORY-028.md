@@ -2,7 +2,7 @@
 id: STORY-028
 title: Create Cloudflare Pages project & set required secrets
 epic: EPIC-007-deployment-cicd
-status: backlog
+status: done
 sprint: sprint-1
 story_points: 3
 priority: high
@@ -12,6 +12,8 @@ generated_by: claude
 dependencies:
   - STORY-026
   - STORY-027
+started_at: '2026-10-05T09:30:57.710Z'
+done_at: '2026-10-05T09:30:57.710Z'
 ---
 ## In gewone taal
 

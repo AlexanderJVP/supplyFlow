@@ -3,7 +3,7 @@ id: STORY-068
 title: 'Bug: completing an order consumes every BOM level instead of only the direct components'
 epic: EPIC-004-production-orders
 status: backlog
-sprint: null
+sprint: sprint-2
 story_points: 3
 priority: high
 type: bug
