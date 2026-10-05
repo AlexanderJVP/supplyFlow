@@ -1,8 +1,10 @@
 ---
 id: STORY-068
-title: 'Bug: completing an order consumes every BOM level instead of only the direct components'
+title: >-
+  Bug: completing an order consumes every BOM level instead of only the direct
+  components
 epic: EPIC-004-production-orders
-status: backlog
+status: in-progress
 sprint: sprint-2
 story_points: 3
 priority: high
@@ -10,9 +12,11 @@ type: bug
 origin: ai-generated
 edited: false
 generated_by: claude
-dependencies: [STORY-043, STORY-015]
+dependencies:
+  - STORY-043
+  - STORY-015
+started_at: '2026-10-05T10:16:48.299Z'
 ---
-
 ## In gewone taal
 
 Als je 4 fietsen maakt, haalt het systeem nu 4 frames van de voorraad én

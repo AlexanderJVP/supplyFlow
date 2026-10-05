@@ -141,7 +141,7 @@ describe('production routes (integration, requires local Supabase)', () => {
     expect(response.status).toBe(401);
   });
 
-  it('reports required/available/shortfall via can-produce for a multi-level BOM', async () => {
+  it('reports required/available/shortfall via can-produce for a direct component', async () => {
     const bike = await createItem(tenantA.accessToken, {
       name: 'CP Bike',
       type: 'finished_good',
@@ -176,7 +176,7 @@ describe('production routes (integration, requires local Supabase)', () => {
     });
   });
 
-  it('runs a full multi-level BOM->production regression: bolt->frame->bike qty 4, real shortfall then OK, complete, ledger deducts/credits correctly', async () => {
+  it('consumes only the direct components: bolt->frame->bike qty 4 deducts frames, not the bolts inside them (STORY-068)', async () => {
     const bolt = await createItem(tenantA.accessToken, {
       name: 'Regression Bolt',
       type: 'component',
@@ -194,7 +194,7 @@ describe('production routes (integration, requires local Supabase)', () => {
     await createBomLine(tenantA.accessToken, frame.id, bolt.id, 4);
     await createBomLine(tenantA.accessToken, bike.id, frame.id, 1);
 
-    // Enough bolts, but not enough frames to build 4 bikes yet.
+    // Enough bolts for 250 frames, but only 3 frames to build 4 bikes.
     await adjustStock(tenantA.accessToken, bolt.id, 1000, 'received');
     await adjustStock(tenantA.accessToken, frame.id, 3, 'received');
 
@@ -211,31 +211,40 @@ describe('production routes (integration, requires local Supabase)', () => {
       required: number;
       available: number;
       shortfall: number;
+      buildable_from_stock: number | null;
     }>;
-    const frameShortfall = shortfallRows.find((r) => r.item_id === frame.id);
-    expect(frameShortfall).toMatchObject({
-      required: 4,
-      available: 3,
-      shortfall: 1,
-    });
+    // Only the direct component is listed -- the bolts are the frame's
+    // business, not the bike's.
+    expect(shortfallRows).toEqual([
+      {
+        item_id: frame.id,
+        required: 4,
+        available: 3,
+        shortfall: 1,
+        buildable_from_stock: 250,
+      },
+    ]);
+
+    // Completing now fails with the same hint, and moves no stock.
+    const order = await createProductionOrder(tenantA.accessToken, bike.id, 4);
+    const failedResponse = await completeOrder(tenantA.accessToken, order.id);
+    expect(failedResponse.status).toBe(409);
+    const failedBody = (await failedResponse.json()) as {
+      shortfalls: unknown[];
+    };
+    expect(failedBody.shortfalls).toEqual([
+      {
+        item_id: frame.id,
+        required: 4,
+        available: 3,
+        shortfall: 1,
+        buildable_from_stock: 250,
+      },
+    ]);
 
     // Top up frames so the build can actually proceed.
     await adjustStock(tenantA.accessToken, frame.id, 5, 'received');
 
-    const okResponse = await app.fetch(
-      new Request(
-        `http://localhost/api/production/can-produce?item_id=${bike.id}&quantity=4`,
-        { headers: { Authorization: `Bearer ${tenantA.accessToken}` } }
-      ),
-      integrationEnv
-    );
-    const okRows = (await okResponse.json()) as Array<{
-      item_id: string;
-      shortfall: number;
-    }>;
-    expect(okRows.every((r) => r.shortfall === 0)).toBe(true);
-
-    const order = await createProductionOrder(tenantA.accessToken, bike.id, 4);
     const completeResponse = await completeOrder(tenantA.accessToken, order.id);
     expect(completeResponse.status).toBe(200);
     const completed = (await completeResponse.json()) as { status: string };
@@ -243,22 +252,45 @@ describe('production routes (integration, requires local Supabase)', () => {
 
     const frameHistory = await getHistory(tenantA.accessToken, frame.id);
     expect(
-      frameHistory.some(
-        (h) => h.quantity_delta === -4 && h.reason === 'consumed'
-      )
-    ).toBe(true);
+      frameHistory
+        .filter((h) => h.reason === 'consumed')
+        .map((h) => h.quantity_delta)
+    ).toEqual([-4]);
 
+    // The bug: these 16 bolts used to be deducted a second time.
     const boltHistory = await getHistory(tenantA.accessToken, bolt.id);
-    expect(
-      boltHistory.some(
-        (h) => h.quantity_delta === -16 && h.reason === 'consumed'
-      )
-    ).toBe(true);
+    expect(boltHistory.some((h) => h.reason === 'consumed')).toBe(false);
 
     const bikeHistory = await getHistory(tenantA.accessToken, bike.id);
     expect(
       bikeHistory.some((h) => h.quantity_delta === 4 && h.reason === 'produced')
     ).toBe(true);
+  });
+
+  it('returns no rows from can-produce for an item without a BOM, and completion just credits it', async () => {
+    const part = await createItem(tenantA.accessToken, {
+      name: 'No-BOM Part',
+      type: 'component',
+    });
+
+    const response = await app.fetch(
+      new Request(
+        `http://localhost/api/production/can-produce?item_id=${part.id}&quantity=3`,
+        { headers: { Authorization: `Bearer ${tenantA.accessToken}` } }
+      ),
+      integrationEnv
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([]);
+
+    const order = await createProductionOrder(tenantA.accessToken, part.id, 3);
+    const completeResponse = await completeOrder(tenantA.accessToken, order.id);
+    expect(completeResponse.status).toBe(200);
+
+    const history = await getHistory(tenantA.accessToken, part.id);
+    expect(history.map((h) => [h.quantity_delta, h.reason])).toEqual([
+      [3, 'produced'],
+    ]);
   });
 
   it('completes a production order: deducts components, credits the finished good, marks completed', async () => {

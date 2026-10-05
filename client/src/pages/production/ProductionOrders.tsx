@@ -1,6 +1,9 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { isAxiosError } from 'axios';
-import type { InsufficientStockError } from '@manufacturing/shared';
+import type {
+  CanProduceShortfall,
+  InsufficientStockError,
+} from '@manufacturing/shared';
 
 import Pager from '../../components/Pager';
 import { useCursorPagination } from '../../hooks/useCursorPagination';
@@ -15,6 +18,13 @@ import {
   useStartProductionOrder,
 } from '../../hooks/useProduction';
 import { useDownloadCsv } from '../../hooks/useDownloadCsv';
+
+// A short sub-assembly is built by its own production order; tell the user
+// how many of it they could build right now from its components' stock.
+function buildableHint(s: CanProduceShortfall) {
+  if (s.buildable_from_stock == null) return null;
+  return ` — you can build ${s.buildable_from_stock} from stock`;
+}
 
 export default function ProductionOrders() {
   const { data: items } = useItems();
@@ -165,7 +175,7 @@ export default function ProductionOrders() {
             {completeShortfalls.map((s) => (
               <li key={s.item_id}>
                 {itemsById.get(s.item_id)?.name ?? s.item_id}: need {s.required}
-                , have {s.available} (short {s.shortfall})
+                , have {s.available} (short {s.shortfall}){buildableHint(s)}
               </li>
             ))}
           </ul>
@@ -218,6 +228,7 @@ export default function ProductionOrders() {
                 <li key={s.item_id}>
                   {itemsById.get(s.item_id)?.name ?? s.item_id}: need{' '}
                   {s.required}, have {s.available} (short {s.shortfall})
+                  {buildableHint(s)}
                 </li>
               ))}
             </ul>

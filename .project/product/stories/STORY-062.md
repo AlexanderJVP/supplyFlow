@@ -3,15 +3,15 @@ id: STORY-062
 title: Menu and pages follow the user's permissions
 epic: EPIC-001-auth-tenants-roles
 status: backlog
-sprint: null
+sprint: sprint-2
 story_points: 2
 priority: high
 origin: ai-generated
 edited: false
 generated_by: claude
-dependencies: [STORY-061]
+dependencies:
+  - STORY-061
 ---
-
 ## In gewone taal
 
 Iedereen ziet alleen de menuknoppen van pagina's die hij mag gebruiken,

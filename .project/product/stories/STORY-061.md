@@ -3,15 +3,15 @@ id: STORY-061
 title: Enforce "view" permissions on the server for every page's data
 epic: EPIC-001-auth-tenants-roles
 status: backlog
-sprint: null
+sprint: sprint-2
 story_points: 2
 priority: high
 origin: ai-generated
 edited: false
 generated_by: claude
-dependencies: [STORY-002]
+dependencies:
+  - STORY-002
 ---
-
 ## In gewone taal
 
 In de rollen kun je nu al "mag artikelen bekijken" afvinken, maar de
