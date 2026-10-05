@@ -2,7 +2,7 @@
 id: STORY-043
 title: 'Bug: concurrent production order completions can drive stock negative'
 epic: EPIC-010-stock-accuracy
-status: backlog
+status: done
 sprint: sprint-1
 story_points: 3
 priority: high
@@ -12,6 +12,8 @@ edited: false
 generated_by: claude
 dependencies:
   - STORY-014
+started_at: '2026-09-26T19:46:21.252Z'
+done_at: '2026-09-26T19:46:21.252Z'
 ---
 ## In gewone taal
 
