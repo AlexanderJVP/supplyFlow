@@ -56,6 +56,28 @@ describe('items routes (integration, requires local Supabase)', () => {
     expect(tenantBItems.some((i) => i.id === item.id)).toBe(false);
   });
 
+  it('requires items.view to list items', async () => {
+    const withoutView = await createRestrictedUser(tenantA.tenant_id, {
+      ...NO_PERMISSIONS,
+      items: { ...NO_PERMISSIONS.items, view: false },
+    });
+    const withView = await createRestrictedUser(
+      tenantA.tenant_id,
+      NO_PERMISSIONS
+    );
+
+    const listAs = (accessToken: string) =>
+      app.fetch(
+        new Request('http://localhost/api/items', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }),
+        integrationEnv
+      );
+
+    expect((await listAs(withoutView.accessToken)).status).toBe(403);
+    expect((await listAs(withView.accessToken)).status).toBe(200);
+  });
+
   it('rejects item creation for a caller without items.create permission', async () => {
     const restricted = await createRestrictedUser(
       tenantA.tenant_id,

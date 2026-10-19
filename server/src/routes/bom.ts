@@ -8,7 +8,7 @@ import type { AppEnv } from '../types';
 export const bomRouter = new Hono<AppEnv>();
 bomRouter.use('*', requireAuth);
 
-bomRouter.get('/:itemId/tree', async (c) => {
+bomRouter.get('/:itemId/tree', requirePermission('bom.view'), async (c) => {
   const itemId = c.req.param('itemId');
 
   const { data, error } = await c.get('supabase').rpc('get_bom_tree', {
@@ -24,7 +24,7 @@ bomRouter.get('/:itemId/tree', async (c) => {
 // line's own id -- unlike /tree (the recursive CTE, which aggregates
 // quantities across levels and never exposes bom_lines.id), this is what a
 // bom_change proposal editor needs to target existing lines for update/delete.
-bomRouter.get('/:itemId/lines', async (c) => {
+bomRouter.get('/:itemId/lines', requirePermission('bom.view'), async (c) => {
   const itemId = c.req.param('itemId');
 
   const { data, error } = await c

@@ -114,6 +114,34 @@ describe('bom routes (integration, requires local Supabase)', () => {
     expect(body.error).toMatch(/tenant/i);
   });
 
+  it('requires bom.view to read a BOM tree or its direct lines', async () => {
+    const frame = await createItem(tenant.accessToken, {
+      name: 'View Frame',
+      type: 'sub_assembly',
+    });
+    const withoutView = await createRestrictedUser(tenant.tenant_id, {
+      ...NO_PERMISSIONS,
+      bom: { ...NO_PERMISSIONS.bom, view: false },
+    });
+    const withView = await createRestrictedUser(
+      tenant.tenant_id,
+      NO_PERMISSIONS
+    );
+
+    for (const path of ['tree', 'lines']) {
+      const getAs = (accessToken: string) =>
+        app.fetch(
+          new Request(`http://localhost/api/bom/${frame.id}/${path}`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }),
+          integrationEnv
+        );
+
+      expect((await getAs(withoutView.accessToken)).status).toBe(403);
+      expect((await getAs(withView.accessToken)).status).toBe(200);
+    }
+  });
+
   it('rejects a bom line for a caller without bom.edit permission', async () => {
     const bolt = await createItem(tenant.accessToken, {
       name: 'Restricted Bolt',

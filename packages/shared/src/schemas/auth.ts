@@ -28,6 +28,7 @@ export const PermissionsSchema = z.object({
     cancel: z.boolean(),
   }),
   proposals: z.object({
+    view: z.boolean(),
     create: z.boolean(),
     review: z.boolean(),
     approve: z.boolean(),

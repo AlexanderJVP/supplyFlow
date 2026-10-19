@@ -183,7 +183,7 @@ describe('users routes (integration, requires local Supabase)', () => {
       bom: { view: true, edit: true },
       inventory: { view: true, adjust: true, export: true },
       production: { view: true, create: true, complete: true, cancel: true },
-      proposals: { create: true, review: true, approve: true },
+      proposals: { view: true, create: true, review: true, approve: true },
       admin: { manage_users: true, manage_roles: true, manage_workflow: true },
     });
 
