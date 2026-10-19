@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createClient } from '@supabase/supabase-js';
 
 import app from '../index';
 import {
@@ -277,5 +278,47 @@ describe('inventory routes (integration, requires local Supabase)', () => {
     const tenantBHistory = await getHistory(tenantB.accessToken, item.id);
     const tenantBHistoryBody = (await tenantBHistory.json()) as unknown[];
     expect(tenantBHistoryBody).toHaveLength(0);
+  });
+
+  // STORY-074: the API always filters on tenant_id, so this goes around it
+  // and reads the view straight from PostgREST -- the way anyone holding the
+  // public anon key (in the client bundle) could.
+  it('isolates the current_stock view itself when queried directly, with or without login', async () => {
+    const item = await createItem(tenantA.accessToken, {
+      name: 'Direct View Item',
+    });
+    expect(
+      (await adjustStock(tenantA.accessToken, item.id, 7, 'received')).status
+    ).toBe(201);
+
+    const directClient = (accessToken?: string) =>
+      createClient(
+        integrationEnv.SUPABASE_URL,
+        integrationEnv.SUPABASE_ANON_KEY,
+        {
+          auth: { persistSession: false },
+          global: accessToken
+            ? { headers: { Authorization: `Bearer ${accessToken}` } }
+            : undefined,
+        }
+      );
+
+    const asTenantB = await directClient(tenantB.accessToken)
+      .from('current_stock')
+      .select('item_id, tenant_id');
+    expect(asTenantB.error).toBeNull();
+    expect(
+      asTenantB.data?.every((row) => row.tenant_id === tenantB.tenant_id)
+    ).toBe(true);
+
+    const anonymous = await directClient().from('current_stock').select('*');
+    expect(anonymous.error).toBeNull();
+    expect(anonymous.data).toHaveLength(0);
+
+    const asTenantA = await directClient(tenantA.accessToken)
+      .from('current_stock')
+      .select('item_id, quantity')
+      .eq('item_id', item.id);
+    expect(asTenantA.data).toEqual([{ item_id: item.id, quantity: 7 }]);
   });
 });

@@ -314,6 +314,8 @@ These are checked on every PR. No exceptions.
 
 10. **Never log passwords, tokens, or PII.** Structured logs contain request ID, user ID, tenant ID, action — never sensitive values.
 
+11. **Every view is `security_invoker = true`.** A plain Postgres view runs with its owner's privileges, so the RLS of the tables behind it does not apply — and `anon`/`authenticated` can select every view (initial-migration grants), straight from PostgREST with the public anon key. Create views with `create view … with (security_invoker = true)`. Found the hard way: `current_stock` leaked every tenant's stock unauthenticated until `STORY-074` (2026-10-20).
+
 ---
 
 ## Tech Stack (Final)
