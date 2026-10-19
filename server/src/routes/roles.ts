@@ -3,7 +3,11 @@ import { zValidator } from '@hono/zod-validator';
 
 import { CreateRoleSchema, UpdateRoleSchema } from '@manufacturing/shared';
 import { createAdminClient } from '../lib/supabase';
-import { requireAuth, requirePermission } from '../middleware/auth';
+import {
+  requireAnyPermission,
+  requireAuth,
+  requirePermission,
+} from '../middleware/auth';
 import type { AppEnv } from '../types';
 
 export const rolesRouter = new Hono<AppEnv>();
@@ -11,24 +15,21 @@ rolesRouter.use('*', requireAuth);
 
 // Readable by anyone who can invite users OR manage roles -- both screens
 // need the role list (invite's role picker, and the roles editor itself).
-rolesRouter.get('/', async (c) => {
-  const perms = c.get('user').permissions;
-  // Optional chaining: app_metadata is stored JSON, so a role saved before a
-  // block existed can lack it entirely -- treat that as no permission (403).
-  if (!perms.admin?.manage_users && !perms.admin?.manage_roles) {
-    return c.json({ error: 'Forbidden' }, 403);
+rolesRouter.get(
+  '/',
+  requireAnyPermission('admin.manage_users', 'admin.manage_roles'),
+  async (c) => {
+    const { data, error } = await c
+      .get('supabase')
+      .from('roles')
+      .select('*')
+      .eq('tenant_id', c.get('user').tenantId)
+      .order('name');
+
+    if (error) return c.json({ error: error.message }, 500);
+    return c.json(data);
   }
-
-  const { data, error } = await c
-    .get('supabase')
-    .from('roles')
-    .select('*')
-    .eq('tenant_id', c.get('user').tenantId)
-    .order('name');
-
-  if (error) return c.json({ error: error.message }, 500);
-  return c.json(data);
-});
+);
 
 rolesRouter.post(
   '/',

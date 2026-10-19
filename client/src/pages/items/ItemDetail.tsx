@@ -10,8 +10,12 @@ export default function ItemDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: items, isLoading, error } = useItems();
-  const { data: stock } = useCurrentStock();
-  const { data: history } = useStockHistory(id ?? null);
+  const canViewInventory = usePermission('inventory.view');
+  const canViewBom = usePermission('bom.view');
+  const { data: stock } = useCurrentStock(canViewInventory);
+  const { data: history } = useStockHistory(
+    canViewInventory ? id ?? null : null
+  );
   const updateItem = useUpdateItem();
   const archiveItem = useArchiveItem();
   const canEdit = usePermission('items.edit');
@@ -98,9 +102,11 @@ export default function ItemDetail() {
           <p>
             <strong>Description:</strong> {item.description || '—'}
           </p>
-          <p>
-            <strong>Current stock:</strong> {stockRow?.quantity ?? 0}
-          </p>
+          {canViewInventory && (
+            <p>
+              <strong>Current stock:</strong> {stockRow?.quantity ?? 0}
+            </p>
+          )}
 
           <div style={{ display: 'flex', gap: 8 }}>
             {canEdit && !item.is_archived && (
@@ -172,31 +178,39 @@ export default function ItemDetail() {
         </form>
       )}
 
-      <h2>Bill of materials</h2>
-      <BomTreeViewer itemId={item.id} />
+      {canViewBom && (
+        <>
+          <h2>Bill of materials</h2>
+          <BomTreeViewer itemId={item.id} />
+        </>
+      )}
 
-      <h2 style={{ marginTop: 24 }}>Recent stock movements</h2>
-      {!history || history.length === 0 ? (
-        <p>No stock movements recorded yet.</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th style={{ textAlign: 'left' }}>Date</th>
-              <th style={{ textAlign: 'right' }}>Delta</th>
-              <th style={{ textAlign: 'left' }}>Reason</th>
-            </tr>
-          </thead>
-          <tbody>
-            {history.slice(0, 10).map((h) => (
-              <tr key={h.id}>
-                <td>{new Date(h.created_at).toLocaleString()}</td>
-                <td style={{ textAlign: 'right' }}>{h.quantity_delta}</td>
-                <td>{h.reason}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {canViewInventory && (
+        <>
+          <h2 style={{ marginTop: 24 }}>Recent stock movements</h2>
+          {!history || history.length === 0 ? (
+            <p>No stock movements recorded yet.</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left' }}>Date</th>
+                  <th style={{ textAlign: 'right' }}>Delta</th>
+                  <th style={{ textAlign: 'left' }}>Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.slice(0, 10).map((h) => (
+                  <tr key={h.id}>
+                    <td>{new Date(h.created_at).toLocaleString()}</td>
+                    <td style={{ textAlign: 'right' }}>{h.quantity_delta}</td>
+                    <td>{h.reason}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
       )}
     </div>
   );

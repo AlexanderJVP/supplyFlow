@@ -25,9 +25,10 @@ export default function StockDashboard() {
   const pagination = useCursorPagination();
   const { data, isLoading, error } = useCurrentStockPage(pagination.after);
   const stock = data?.rows;
+  const canAdjust = usePermission('inventory.adjust');
   // Separately fetched (unpaginated up to 200) so the "Adjust stock" item
   // picker below always lists every item, not just the current table page.
-  const { data: allStock } = useCurrentStock();
+  const { data: allStock } = useCurrentStock(canAdjust);
   const adjustStock = useAdjustStock();
   const canExport = usePermission('inventory.export');
   const {
@@ -151,75 +152,79 @@ export default function StockDashboard() {
         onNext={() => pagination.goNext(data?.nextCursor)}
       />
 
-      <h2 style={{ marginTop: 32 }}>Adjust stock</h2>
-      <form onSubmit={handleAdjust} style={{ maxWidth: 360 }}>
-        <div style={{ marginBottom: 8 }}>
-          <label>
-            Item
-            <select
-              value={adjustItemId}
-              onChange={(e) => setAdjustItemId(e.target.value)}
-              style={{ display: 'block', width: '100%' }}
-            >
-              <option value="">Select an item…</option>
-              {allStock?.map((row) => (
-                <option key={row.item_id} value={row.item_id}>
-                  {row.sku} — {row.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+      {canAdjust && (
+        <>
+          <h2 style={{ marginTop: 32 }}>Adjust stock</h2>
+          <form onSubmit={handleAdjust} style={{ maxWidth: 360 }}>
+            <div style={{ marginBottom: 8 }}>
+              <label>
+                Item
+                <select
+                  value={adjustItemId}
+                  onChange={(e) => setAdjustItemId(e.target.value)}
+                  style={{ display: 'block', width: '100%' }}
+                >
+                  <option value="">Select an item…</option>
+                  {allStock?.map((row) => (
+                    <option key={row.item_id} value={row.item_id}>
+                      {row.sku} — {row.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
-        <div style={{ marginBottom: 8 }}>
-          <label>
-            Quantity delta (negative to remove stock)
-            <input
-              type="number"
-              value={quantityDelta}
-              onChange={(e) => setQuantityDelta(e.target.value)}
-              style={{ display: 'block', width: '100%' }}
-            />
-          </label>
-        </div>
+            <div style={{ marginBottom: 8 }}>
+              <label>
+                Quantity delta (negative to remove stock)
+                <input
+                  type="number"
+                  value={quantityDelta}
+                  onChange={(e) => setQuantityDelta(e.target.value)}
+                  style={{ display: 'block', width: '100%' }}
+                />
+              </label>
+            </div>
 
-        <div style={{ marginBottom: 8 }}>
-          <label>
-            Reason
-            <select
-              value={reason}
-              onChange={(e) =>
-                setReason(e.target.value as (typeof LEDGER_REASONS)[number])
-              }
-              style={{ display: 'block', width: '100%' }}
-            >
-              {LEDGER_REASONS.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+            <div style={{ marginBottom: 8 }}>
+              <label>
+                Reason
+                <select
+                  value={reason}
+                  onChange={(e) =>
+                    setReason(e.target.value as (typeof LEDGER_REASONS)[number])
+                  }
+                  style={{ display: 'block', width: '100%' }}
+                >
+                  {LEDGER_REASONS.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
-        <div style={{ marginBottom: 8 }}>
-          <label>
-            Notes
-            <input
-              type="text"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              style={{ display: 'block', width: '100%' }}
-            />
-          </label>
-        </div>
+            <div style={{ marginBottom: 8 }}>
+              <label>
+                Notes
+                <input
+                  type="text"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  style={{ display: 'block', width: '100%' }}
+                />
+              </label>
+            </div>
 
-        {formError && <p style={{ color: 'red' }}>{formError}</p>}
+            {formError && <p style={{ color: 'red' }}>{formError}</p>}
 
-        <button type="submit" disabled={adjustStock.isPending}>
-          {adjustStock.isPending ? 'Saving…' : 'Adjust stock'}
-        </button>
-      </form>
+            <button type="submit" disabled={adjustStock.isPending}>
+              {adjustStock.isPending ? 'Saving…' : 'Adjust stock'}
+            </button>
+          </form>
+        </>
+      )}
 
       {historyItem && (
         <MovementHistory

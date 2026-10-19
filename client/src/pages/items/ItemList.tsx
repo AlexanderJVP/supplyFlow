@@ -65,6 +65,7 @@ export default function ItemList() {
   const items = data?.items;
   const createItem = useCreateItem();
   const archiveItem = useArchiveItem();
+  const canCreate = usePermission('items.create');
   const canEdit = usePermission('items.edit');
   const canArchive = usePermission('items.archive');
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -165,79 +166,83 @@ export default function ItemList() {
         onNext={() => pagination.goNext(data?.nextCursor)}
       />
 
-      <h2 style={{ marginTop: 32 }}>New item</h2>
-      <form onSubmit={handleCreate} style={{ maxWidth: 360 }}>
-        <div style={{ marginBottom: 8 }}>
-          <label>
-            SKU
-            <input
-              type="text"
-              value={sku}
-              onChange={(e) => setSku(e.target.value)}
-              style={{ display: 'block', width: '100%' }}
-            />
-          </label>
-        </div>
+      {canCreate && (
+        <>
+          <h2 style={{ marginTop: 32 }}>New item</h2>
+          <form onSubmit={handleCreate} style={{ maxWidth: 360 }}>
+            <div style={{ marginBottom: 8 }}>
+              <label>
+                SKU
+                <input
+                  type="text"
+                  value={sku}
+                  onChange={(e) => setSku(e.target.value)}
+                  style={{ display: 'block', width: '100%' }}
+                />
+              </label>
+            </div>
 
-        <div style={{ marginBottom: 8 }}>
-          <label>
-            Name
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              style={{ display: 'block', width: '100%' }}
-            />
-          </label>
-        </div>
+            <div style={{ marginBottom: 8 }}>
+              <label>
+                Name
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  style={{ display: 'block', width: '100%' }}
+                />
+              </label>
+            </div>
 
-        <div style={{ marginBottom: 8 }}>
-          <label>
-            Type
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value as ItemType)}
-              style={{ display: 'block', width: '100%' }}
-            >
-              {ITEM_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+            <div style={{ marginBottom: 8 }}>
+              <label>
+                Type
+                <select
+                  value={type}
+                  onChange={(e) => setType(e.target.value as ItemType)}
+                  style={{ display: 'block', width: '100%' }}
+                >
+                  {ITEM_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
-        <div style={{ marginBottom: 8 }}>
-          <label>
-            Unit of measure
-            <input
-              type="text"
-              value={unitOfMeasure}
-              onChange={(e) => setUnitOfMeasure(e.target.value)}
-              style={{ display: 'block', width: '100%' }}
-            />
-          </label>
-        </div>
+            <div style={{ marginBottom: 8 }}>
+              <label>
+                Unit of measure
+                <input
+                  type="text"
+                  value={unitOfMeasure}
+                  onChange={(e) => setUnitOfMeasure(e.target.value)}
+                  style={{ display: 'block', width: '100%' }}
+                />
+              </label>
+            </div>
 
-        <div style={{ marginBottom: 8 }}>
-          <label>
-            Reorder point (optional)
-            <input
-              type="number"
-              value={reorderPoint}
-              onChange={(e) => setReorderPoint(e.target.value)}
-              style={{ display: 'block', width: '100%' }}
-            />
-          </label>
-        </div>
+            <div style={{ marginBottom: 8 }}>
+              <label>
+                Reorder point (optional)
+                <input
+                  type="number"
+                  value={reorderPoint}
+                  onChange={(e) => setReorderPoint(e.target.value)}
+                  style={{ display: 'block', width: '100%' }}
+                />
+              </label>
+            </div>
 
-        {formError && <p style={{ color: 'red' }}>{formError}</p>}
+            {formError && <p style={{ color: 'red' }}>{formError}</p>}
 
-        <button type="submit" disabled={createItem.isPending}>
-          {createItem.isPending ? 'Creating…' : 'Create item'}
-        </button>
-      </form>
+            <button type="submit" disabled={createItem.isPending}>
+              {createItem.isPending ? 'Creating…' : 'Create item'}
+            </button>
+          </form>
+        </>
+      )}
     </div>
   );
 }

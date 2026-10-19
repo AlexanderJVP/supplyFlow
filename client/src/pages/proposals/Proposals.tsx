@@ -149,7 +149,8 @@ export default function Proposals() {
                 <td>{p.type}</td>
                 <td>{p.status}</td>
                 <td>
-                  {p.status === 'draft' &&
+                  {canCreate &&
+                    p.status === 'draft' &&
                     p.created_by === session?.user.id && (
                       <button
                         disabled={submitProposal.isPending}

@@ -1,16 +1,15 @@
 import type { Permissions } from '@manufacturing/shared';
 
 import { useAuth } from '../context/AuthContext';
+import { hasPermission } from '../lib/permissions';
+
+export function usePermissions(): Partial<Permissions> | undefined {
+  const { session } = useAuth();
+  return session?.user.app_metadata.permissions as
+    | Partial<Permissions>
+    | undefined;
+}
 
 export function usePermission(key: string): boolean {
-  const { session } = useAuth();
-  const [domain, action] = key.split('.');
-  const permissions = session?.user.app_metadata.permissions as
-    | Permissions
-    | undefined;
-  return Boolean(
-    (permissions as unknown as Record<string, Record<string, boolean>>)?.[
-      domain
-    ]?.[action]
-  );
+  return hasPermission(usePermissions(), key);
 }
