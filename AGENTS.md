@@ -42,6 +42,7 @@ Suggested next customizations
 - `create-agent ci-helper` — helper agent that formats commits, runs tests, and opens PR drafts.
 
 Current repo state
+- **Checked 2026-10-18, re-checked 2026-10-19 (`/catchup`, unchanged):** live in production since 2026-10-05 (Cloudflare Pages + Worker, Supabase; URLs in claude.md ▶ Start Here). `master` = `origin/master` = `2cee745`, CI + Deploy green. Locally verified: `pnpm run typecheck` clean, `pnpm --filter client run test` 2/2, `pnpm run lint` 0 errors / 1 warning. Server integration tests need Docker + `pnpm run db:up` (not running here) — CI runs them. The Supabase CLI is not on PATH in the agent environment; production migrations are applied manually by the owner (`supabase db push`). The bullets below are older history.
 - The client and API run in Docker as separate services; the containers start with `pnpm dlx` entrypoints because bind mounts hide package-local `node_modules`.
 - **Docker Compose fixed 2026-07-17** (four stacked bugs — working dirs, node_modules volume paths, Wrangler's local SQLite state needing a real filesystem, container→host Supabase networking via `host.docker.internal`).
 - **New dependency? `docker compose down -v` before your next `up --build`.** The api/client containers' `node_modules` live in named Docker volumes that persist across rebuilds — `docker compose up --build` alone does NOT pick up a newly-added package.json dependency, because the volume still holds the old install and shadows the freshly-built image's node_modules. Hit this exact failure (`Could not resolve "@hono/sentry"`) during a live Docker smoke test on 2026-07-18; fixed by `down -v` + `up -d --build`. `-v` here only drops these disposable node_modules/wrangler-state volumes, not the separate Supabase Postgres volume.
@@ -61,4 +62,4 @@ Current repo state
 - Phases 1-5 plus most of Phase 6 (polish/production-readiness) are implemented end-to-end, but see the git-history note above — several of these "done" items aren't actually committed yet. See `claude.md`'s Resume Point (item 11) for the commit plan, plus the remaining open items (Cloudflare/Supabase account setup + staging smoke test, a real Sentry DSN, `item_change`/`process_change` proposal payload schemas).
 - `README.md` is stale (still describes Phase-0 bootstrap state) — don't rely on it, use this file and `claude.md` instead.
 
-Last updated: 2026-09-26 (end of day — handoff in claude.md ▶ Start Here)
+Last updated: 2026-10-19 (`/catchup` re-check — handoff in claude.md ▶ Start Here)

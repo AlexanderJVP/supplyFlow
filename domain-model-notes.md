@@ -1,8 +1,70 @@
 # Domain Model Notes — Manufacturing Operations Platform
 
+## Update 2026-10-18 — what changed and why
+
+Re-checked against all **12** migrations. The two added since the last pass
+(`20260926000000_stock_lock_helper.sql`, STORY-043, and
+`20261005000000_can_produce_direct_components.sql`, STORY-068) only
+(re)define functions — no table, column, enum or view changed — so the
+built ER content is unchanged. What changed:
+
+- **ADR-001…004 are all `accepted` (2026-09-26)**, so the ADR-001/002 slice
+  (`jobs_reservations`, `warehouse_ops`, `job`, `stock_reservation`,
+  `warehouse`, `location`, `fulfillment_order` and their relationships and
+  services) moved from `proposed` to **`planned`**. Their stories
+  (STORY-031, 035–047) are still in `.project/staging/`; the *decision* is
+  accepted, the detailed shapes below come from those staging stories.
+- Shapes filled in from staging stories: `location.name` (unique per
+  warehouse) and `location.type` (`location_type`: storage, staging —
+  STORY-036); `fulfillment_order.status` (`fulfillment_status`: draft,
+  picked, packed, shipped, cancelled) and `reference` (STORY-039);
+  `job` timestamps (STORY-031). **New planned entity
+  `fulfillment_order_line`** (STORY-039) with 3 relationships.
+- **New `proposed` bounded context `purchasing`** (EPIC-011, all stories
+  in staging): `supplier`, `supplier_item` (STORY-049), `purchase_order`,
+  `purchase_order_line` (STORY-050), 8 relationships, and
+  `GoodsReceiptService` (STORY-051). `supplier_item` / `purchase_order_line`
+  get a `?` placeholder because the stories don't name their `id` /
+  `tenant_id`.
+- **New `proposed` entities `stock_count`, `stock_count_line`** in
+  `inventory` (EPIC-010 is accepted, but STORY-052/053 are in staging), 5
+  relationships, and `StockCountPostingService`.
+- **New services:** `WhereUsedService` (`planned` — STORY-056 is accepted
+  and in sprint 2), `ProposalImpactService` (STORY-057) and
+  `ApprovalChainService` (STORY-058), both `proposed`.
+- **Corrected built description:** `ProductionCompletionService` said it
+  deducts "every recursively-required BOM component" — wrong since
+  STORY-068; it now deducts direct components only and uses the advisory
+  stock locks from STORY-043. `StockReservationService` said
+  `SELECT … FOR UPDATE` — superseded by the ADR-001 amendment (advisory
+  locks via `stock_lock_key` / `lock_stock_keys`).
+- **Attribute-level flags** (no per-attribute `status`, so these are text
+  only and are **not** hidden by the Studio's "Current" view):
+  `profile.permission_version` → planned (ADR-003, STORY-030);
+  new `profile.is_platform_support` → planned (ADR-004, STORY-066);
+  `stock_ledger.location_id` and the `moved`/`counted` reasons → planned
+  (ADR-002); new `item.is_phantom` → planned (STORY-069, accepted);
+  new `item.reorder_quantity` → proposed (STORY-054); new
+  `tenant` "count approval threshold" → proposed (STORY-053 — the story
+  says "a tenant setting" without deciding where it lives).
+- **New ⚠ relationship** `purchase_order → stock_ledger`: receipts link
+  via `reference_type`/`reference_id`, which is not a real foreign key.
+- **Deliberately not modelled** (shape undecided in the backlog):
+  the approval-chain snapshot on a submitted proposal (STORY-058: "a
+  `proposal_workflow_steps` copy or a JSON snapshot"); role templates
+  (STORY-063: "a platform-level table or a versioned file"); the reservation
+  storage (STORY-035: table or view); notifications (STORY-060: no table
+  named, e-mail provider undecided); a customer entity for fulfillment
+  (STORY-039 open question). `item_change` / replace-everywhere proposals
+  (STORY-020/059) change payloads, not tables. `domainEvents` stays empty:
+  still no event bus in the code.
+- The text below is the earlier pass and still describes the built part
+  correctly; where it says the ADRs are `proposed`, read `planned`.
+
 Source of truth used: `supabase/migrations/*.sql` (all 11 files, read in full — the
 initial schema plus every structural/trigger/RLS migration through
-`20260718000004_profiles_fk_set_null.sql`). Every entity, attribute, key marker,
+`20260718000004_profiles_fk_set_null.sql`; re-checked 2026-10-18 against
+12 files, see above). Every entity, attribute, key marker,
 and relationship cardinality in `domain-model.json` was read directly off these
 migrations — **none of the ER-level content (entities, attributes, relationships)
 is guessed.** `packages/shared/src/schemas/*.ts` was spot-checked and confirms

@@ -120,8 +120,22 @@ per-tenant configuration and self-service admin as first-class concerns.
 Read this first. It says where the work stands and what to do next; the
 sections below are the detailed history and spec.
 
-### Where we are (updated 2026-10-05, end of session)
+### Where we are (updated 2026-10-05, end of session; `/catchup` checks 2026-10-18 and 2026-10-19)
 
+- **`/catchup` 2026-10-18, re-checked 2026-10-19 — no code changes since 2026-10-05.** Still uncommitted on 2026-10-19: the 2026-10-18 doc updates (`AGENTS.md`, `claude.md`, `domain-model.json`, `domain-model-notes.md` — ADR-001/002 slice `proposed` → `planned`) plus the two staging stories below; nothing on a branch or PR yet. `master` =
+  `origin/master` = `2cee745` (STORY-068, PR #5); last CI + Deploy runs
+  green (`37296198301`/`37296198278`). Locally: typecheck clean, client
+  tests 2/2, lint 0 errors (1 warning: non-null assertion in
+  `client/src/main.tsx:9`). No TODO/FIXME in code. Untracked:
+  `.project/staging/STORY-072.md` (BOM easy to find, 3 pt) and
+  `STORY-073.md` (in-app handleiding, 5 pt) — written by an AI after
+  the owner couldn't find the BOM form on 2026-10-05; still to be
+  committed and reviewed by the owner. Board state: sprint 1 `done` (goal
+  still "_Nog te bepalen._"); sprint 2 `active` (2026-10-12 → 10-25)
+  with 061/062/056 accepted and linked but `backlog` (not started),
+  STORY-068 still `in-progress` although merged and deployed.
+  **Resolved 2026-10-19:** the owner's `migration list --linked` showed
+  `20261005000000` applied in production (no double deduction live).
 - **LIVE since 2026-10-05 (`STORY-029` done):** site
   `https://manufacturing-platform-client.pages.dev`, API
   `https://manufacturing-platform-server.alexander-van-puyenbroeck15.workers.dev/api`.
@@ -130,6 +144,12 @@ sections below are the detailed history and spec.
   `van-puyenbroeck`); the owner signed in and opened the pages without
   errors. CORS verified: site origin allowed, unknown origin → 403.
 - **Go-live gotchas (2026-10-05):**
+  - **Use only `https://manufacturing-platform-client.pages.dev`.** Each
+    deploy also prints a preview URL (`https://<hash>.manufacturing-platform-client.pages.dev`);
+    the API's CORS allowlist rejects it on purpose (403), so every call
+    fails there and the item form misleadingly blames the SKU (`STORY-076`).
+    Decided 2026-10-20 (V5): previews stay blocked — they would talk to
+    the production database.
   - Pages' `wrangler.toml` must **not** contain `account_id` —
     `wrangler pages deploy` rejects it (fixed in PR #3); CI passes
     `CLOUDFLARE_ACCOUNT_ID` as env instead. The Worker's toml keeps it.
@@ -139,6 +159,15 @@ sections below are the detailed history and spec.
     The client value is public: check it in the built JS bundle.
   - Production migrations are **manual** today (`supabase db push` from
     the owner's linked machine) — `STORY-070` proposes automating it.
+    The CLI is not installed globally on the owner's PC either: use
+    `pnpm dlx supabase migration list --linked` / `pnpm dlx supabase db push`
+    (linked project ref `ixjdzabltvrnbzxzmrki`, "manufacturing-platform").
+    Apply a migration **before** merging code that depends on it — merge
+    auto-deploys the Worker.
+  - **Free-tier Supabase pauses the project after ~1 week idle** (found
+    paused 2026-10-19; the live app is down until the owner clicks
+    Restore in the dashboard). Recurs until the plan changes or the app
+    is used regularly — no story for it yet.
   - Auto mode blocks Claude from merging PRs and writing to GitHub/Worker
     secret stores: the owner runs `! gh pr merge <n> --squash
     --delete-branch` and secret commands themselves. Long `!` commands
@@ -184,7 +213,50 @@ sections below are the detailed history and spec.
   `.project/product/roadmap.md`; decisions: ADR-001…004 in
   `.project/engineering/decisions/` (all **accepted**).
 
-### Do next, in this order
+### Do next, in this order (revised by `/catchup` 2026-10-18)
+
+1. ~~Confirm the STORY-068 migration is in production~~ — **confirmed
+   2026-10-19**. Owner: set `STORY-068` (and `STORY-061`) to `done` in
+   the board app and fill in sprint 1's goal.
+2. **Done in code 2026-10-19 (PR #6, `99d6214`; CI `39261726346` + Deploy `39261726534` green, no Node 20 warnings left; those runs were still on Ubuntu 24.04.5 — confirm one later run on Ubuntu 26, then the owner sets it to `done` in the board app).** `STORY-071` (GitHub Actions Node 20 / Ubuntu 26, 1 pt) — the Ubuntu
+   switch is **2026-10-19** (the day of the 2026-10-19 check — no longer something to wait on): branch `ai/story-071-actions`, bump
+   `actions/checkout`, `actions/setup-node`, `pnpm/action-setup` in
+   `ci.yml`/`deploy.yml`, PR, check CI has no deprecation warnings.
+3. ~~`STORY-061`~~ — **done and live 2026-10-19** (PR #7, `383264b`;
+   migration `20261019000000` pushed to production before merge; CI
+   `39308544450` 85/85 server tests + Deploy `39308544185` green).
+   Carry into `STORY-062`: the inventory/production item pickers call
+   `GET /items` and the bom_change editor calls `/bom/:id/lines`, so a
+   role without `items.view`/`bom.view` gets empty pickers there.
+4. ~~`STORY-062`~~ — **done and live 2026-10-20** (PR #8, `305bedb`; owner tested
+   the platform end to end the same day: items, BOM, stock, production incl.
+   the STORY-068 case, proposals, a restricted role — all OK; not yet the
+   >1h token refresh). Owner decision: `GET /items` is open to any page that
+   needs the item list (items/inventory/production/proposals view);
+   `/bom/:id/lines` also to `proposals.view`.
+   **Also done 2026-10-20: `STORY-074`** (PR #9, `cda6299`) — `current_stock`
+   view was readable cross-tenant and unauthenticated via PostgREST
+   (Supabase advisor); now `security_invoker`, Security Rule 11. Found with
+   it: RLS checks only the tenant, never the role — `ADR-005` +
+   `STORY-075` (staging) must land before a second company. `STORY-076`
+   (staging): error messages show the real cause.
+5. `STORY-056` (where-used endpoint + section on `ItemDetail.tsx`).
+6. `STORY-072`/`073` committed to staging 2026-10-20 (docs PR); owner reviews
+   them (and `STORY-075`/`076`, `ADR-005`) in the board app and decides the open question in both: does the
+   app UI become Dutch (or bilingual)? That decision blocks 072's labels.
+7. Sprint 3 planning (from 2026-10-26): candidates `STORY-072` (owner's
+   real pain point), `STORY-055` review screen, `STORY-058` approval
+   chains, `STORY-070` automated migrations (would have prevented the
+   uncertainty in step 1).
+8. Small loose ends: rewrite the Phase-0 `README.md`; map the
+   `POST /production/:id/cancel` generic 500 to 409/404 (`STORY-048`);
+   remove the non-null assertion in `client/src/main.tsx:9`.
+9. `STORY-069` (phantom sets) and the remaining staging epics wait for
+   the owner's acceptance.
+10. Before SaaS customers: `STORY-030` (ADR-003 permission_version) and a
+    real Sentry DSN.
+
+Previous list (2026-10-05), kept for context:
 
 1. Owner, in the board app (`STORY-028`/`029` already set to `done`
    2026-10-05): close sprint 1 (still `planning`), fill in its goal; accept `STORY-061`, `062`, `056`
@@ -209,8 +281,8 @@ sections below are the detailed history and spec.
   2026-09-26 session reached V39), each with what/why/which file, most
   important first. **Apply nothing until the owner approves** ("V1, V3
   ok"). Never delete a story or epic (use `archived`/`superseded` + a
-  reason); new items get the next free ID (next: `STORY-072`,
-  `EPIC-013`, `ADR-005`) and go to `.project/staging/`. After applying,
+  reason); new items get the next free ID (next: `STORY-077`,
+  `EPIC-013`, `ADR-006`) and go to `.project/staging/`. After applying,
   list the changes per file and end with: applied / still open / new
   questions.
 - **Git:** work on a branch `ai/<short-name>` and open a PR; CI runs the
