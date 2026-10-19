@@ -12,7 +12,7 @@ import type { AppEnv } from '../types';
 export const proposalsRouter = new Hono<AppEnv>();
 proposalsRouter.use('*', requireAuth);
 
-proposalsRouter.get('/', async (c) => {
+proposalsRouter.get('/', requirePermission('proposals.view'), async (c) => {
   const { data, error } = await c
     .get('supabase')
     .from('proposals')

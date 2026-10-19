@@ -12,28 +12,33 @@ import type { AppEnv } from '../types';
 export const itemsRouter = new Hono<AppEnv>();
 itemsRouter.use('*', requireAuth);
 
-itemsRouter.get('/', zValidator('query', PaginationQuerySchema), async (c) => {
-  const { after, limit } = c.req.valid('query');
+itemsRouter.get(
+  '/',
+  requirePermission('items.view'),
+  zValidator('query', PaginationQuerySchema),
+  async (c) => {
+    const { after, limit } = c.req.valid('query');
 
-  let query = c
-    .get('supabase')
-    .from('items')
-    .select('*')
-    .eq('tenant_id', c.get('user').tenantId)
-    .eq('is_archived', false)
-    .order('id', { ascending: true })
-    .limit(limit);
+    let query = c
+      .get('supabase')
+      .from('items')
+      .select('*')
+      .eq('tenant_id', c.get('user').tenantId)
+      .eq('is_archived', false)
+      .order('id', { ascending: true })
+      .limit(limit);
 
-  if (after) query = query.gt('id', after);
+    if (after) query = query.gt('id', after);
 
-  const { data, error } = await query;
+    const { data, error } = await query;
 
-  if (error) return c.json({ error: error.message }, 500);
-  if (data.length === limit) {
-    c.header('X-Next-Cursor', data[data.length - 1].id as string);
+    if (error) return c.json({ error: error.message }, 500);
+    if (data.length === limit) {
+      c.header('X-Next-Cursor', data[data.length - 1].id as string);
+    }
+    return c.json(data);
   }
-  return c.json(data);
-});
+);
 
 itemsRouter.post(
   '/',

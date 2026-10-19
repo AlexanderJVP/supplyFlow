@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Permissions } from '@manufacturing/shared';
 
 import app from '../index';
 import {
@@ -93,6 +94,24 @@ describe('roles routes (integration, requires local Supabase)', () => {
     const restricted = await createRestrictedUser(
       tenantA.tenant_id,
       NO_PERMISSIONS
+    );
+    const response = await app.fetch(
+      new Request('http://localhost/api/roles', {
+        headers: { Authorization: `Bearer ${restricted.accessToken}` },
+      }),
+      integrationEnv
+    );
+    expect(response.status).toBe(403);
+  });
+
+  it('rejects listing roles with 403 (not 500) when the admin permission block is missing', async () => {
+    // Stored permissions are untrusted JSON: an older or hand-edited role
+    // can lack a whole block even though the Permissions type says otherwise.
+    const withoutAdmin: Partial<Permissions> = { ...NO_PERMISSIONS };
+    delete withoutAdmin.admin;
+    const restricted = await createRestrictedUser(
+      tenantA.tenant_id,
+      withoutAdmin as unknown as Permissions
     );
     const response = await app.fetch(
       new Request('http://localhost/api/roles', {

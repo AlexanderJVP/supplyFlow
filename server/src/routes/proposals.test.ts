@@ -91,6 +91,28 @@ describe('proposals routes (integration, requires local Supabase)', () => {
     expect(response.status).toBe(401);
   });
 
+  it('requires proposals.view to list proposals', async () => {
+    const withoutView = await createRestrictedUser(tenantA.tenant_id, {
+      ...NO_PERMISSIONS,
+      proposals: { ...NO_PERMISSIONS.proposals, view: false },
+    });
+    const withView = await createRestrictedUser(
+      tenantA.tenant_id,
+      NO_PERMISSIONS
+    );
+
+    const listAs = (accessToken: string) =>
+      app.fetch(
+        new Request('http://localhost/api/proposals', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }),
+        integrationEnv
+      );
+
+    expect((await listAs(withoutView.accessToken)).status).toBe(403);
+    expect((await listAs(withView.accessToken)).status).toBe(200);
+  });
+
   it('rejects proposal creation for a caller without proposals.create permission', async () => {
     const restricted = await createRestrictedUser(
       tenantA.tenant_id,
@@ -245,7 +267,7 @@ describe('proposals routes (integration, requires local Supabase)', () => {
 
     const wrongRoleReviewer = await createRestrictedUser(tenantA.tenant_id, {
       ...NO_PERMISSIONS,
-      proposals: { create: false, review: true, approve: false },
+      proposals: { view: true, create: false, review: true, approve: false },
     });
 
     const response = await reviewProposal(

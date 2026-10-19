@@ -13,7 +13,9 @@ rolesRouter.use('*', requireAuth);
 // need the role list (invite's role picker, and the roles editor itself).
 rolesRouter.get('/', async (c) => {
   const perms = c.get('user').permissions;
-  if (!perms.admin.manage_users && !perms.admin.manage_roles) {
+  // Optional chaining: app_metadata is stored JSON, so a role saved before a
+  // block existed can lack it entirely -- treat that as no permission (403).
+  if (!perms.admin?.manage_users && !perms.admin?.manage_roles) {
     return c.json({ error: 'Forbidden' }, 403);
   }
 

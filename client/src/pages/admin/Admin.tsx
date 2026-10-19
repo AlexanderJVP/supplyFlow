@@ -15,7 +15,7 @@ const EMPTY_PERMISSIONS: Permissions = {
   bom: { view: false, edit: false },
   inventory: { view: false, adjust: false, export: false },
   production: { view: false, create: false, complete: false, cancel: false },
-  proposals: { create: false, review: false, approve: false },
+  proposals: { view: false, create: false, review: false, approve: false },
   admin: { manage_users: false, manage_roles: false, manage_workflow: false },
 };
 

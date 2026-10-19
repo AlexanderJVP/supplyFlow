@@ -53,7 +53,7 @@ export const NO_PERMISSIONS: Permissions = {
   bom: { view: true, edit: false },
   inventory: { view: true, adjust: false, export: false },
   production: { view: true, create: false, complete: false, cancel: false },
-  proposals: { create: false, review: false, approve: false },
+  proposals: { view: true, create: false, review: false, approve: false },
   admin: { manage_users: false, manage_roles: false, manage_workflow: false },
 };
 
