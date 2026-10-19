@@ -114,32 +114,43 @@ describe('bom routes (integration, requires local Supabase)', () => {
     expect(body.error).toMatch(/tenant/i);
   });
 
-  it('requires bom.view to read a BOM tree or its direct lines', async () => {
+  it('requires bom.view for the tree; bom.view or proposals.view for lines', async () => {
     const frame = await createItem(tenant.accessToken, {
       name: 'View Frame',
       type: 'sub_assembly',
     });
-    const withoutView = await createRestrictedUser(tenant.tenant_id, {
+    const noBomView = {
       ...NO_PERMISSIONS,
       bom: { ...NO_PERMISSIONS.bom, view: false },
+    };
+    const withoutView = await createRestrictedUser(tenant.tenant_id, {
+      ...noBomView,
+      proposals: { ...noBomView.proposals, view: false },
     });
+    // The bom_change proposal editor reads existing lines.
+    const proposalsOnly = await createRestrictedUser(
+      tenant.tenant_id,
+      noBomView
+    );
     const withView = await createRestrictedUser(
       tenant.tenant_id,
       NO_PERMISSIONS
     );
 
-    for (const path of ['tree', 'lines']) {
-      const getAs = (accessToken: string) =>
-        app.fetch(
-          new Request(`http://localhost/api/bom/${frame.id}/${path}`, {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          }),
-          integrationEnv
-        );
+    const getAs = (accessToken: string, path: string) =>
+      app.fetch(
+        new Request(`http://localhost/api/bom/${frame.id}/${path}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }),
+        integrationEnv
+      );
 
-      expect((await getAs(withoutView.accessToken)).status).toBe(403);
-      expect((await getAs(withView.accessToken)).status).toBe(200);
+    for (const path of ['tree', 'lines']) {
+      expect((await getAs(withoutView.accessToken, path)).status).toBe(403);
+      expect((await getAs(withView.accessToken, path)).status).toBe(200);
     }
+    expect((await getAs(proposalsOnly.accessToken, 'tree')).status).toBe(403);
+    expect((await getAs(proposalsOnly.accessToken, 'lines')).status).toBe(200);
   });
 
   it('rejects a bom line for a caller without bom.edit permission', async () => {

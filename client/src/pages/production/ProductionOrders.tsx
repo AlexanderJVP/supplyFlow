@@ -32,6 +32,10 @@ export default function ProductionOrders() {
   const { data, isLoading, error } = useProductionOrdersPage(pagination.after);
   const orders = data?.orders;
   const canExport = usePermission('production.view');
+  // Starting an order is part of creating it (same server permission).
+  const canCreate = usePermission('production.create');
+  const canComplete = usePermission('production.complete');
+  const canCancel = usePermission('production.cancel');
   const {
     download: downloadExport,
     isDownloading,
@@ -136,23 +140,25 @@ export default function ProductionOrders() {
                 <td style={{ textAlign: 'right' }}>{order.quantity}</td>
                 <td>{order.status}</td>
                 <td style={{ display: 'flex', gap: 8 }}>
-                  {order.status === 'draft' && (
+                  {canCreate && order.status === 'draft' && (
                     <button onClick={() => startOrder.mutate(order.id)}>
                       Start
                     </button>
                   )}
-                  {(order.status === 'draft' ||
-                    order.status === 'in_progress') && (
-                    <button onClick={() => completeOrder.mutate(order.id)}>
-                      Complete
-                    </button>
-                  )}
-                  {(order.status === 'draft' ||
-                    order.status === 'in_progress') && (
-                    <button onClick={() => cancelOrder.mutate(order.id)}>
-                      Cancel
-                    </button>
-                  )}
+                  {canComplete &&
+                    (order.status === 'draft' ||
+                      order.status === 'in_progress') && (
+                      <button onClick={() => completeOrder.mutate(order.id)}>
+                        Complete
+                      </button>
+                    )}
+                  {canCancel &&
+                    (order.status === 'draft' ||
+                      order.status === 'in_progress') && (
+                      <button onClick={() => cancelOrder.mutate(order.id)}>
+                        Cancel
+                      </button>
+                    )}
                 </td>
               </tr>
             ))}
@@ -185,62 +191,66 @@ export default function ProductionOrders() {
         <p style={{ color: 'red' }}>Failed to complete order.</p>
       )}
 
-      <h2 style={{ marginTop: 32 }}>New production order</h2>
-      <form onSubmit={handleCreate} style={{ maxWidth: 360 }}>
-        <div style={{ marginBottom: 8 }}>
-          <label>
-            Item
-            <select
-              value={itemId}
-              onChange={(e) => setItemId(e.target.value)}
-              style={{ display: 'block', width: '100%' }}
-            >
-              <option value="">Select an item…</option>
-              {items?.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.sku} — {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+      {canCreate && (
+        <>
+          <h2 style={{ marginTop: 32 }}>New production order</h2>
+          <form onSubmit={handleCreate} style={{ maxWidth: 360 }}>
+            <div style={{ marginBottom: 8 }}>
+              <label>
+                Item
+                <select
+                  value={itemId}
+                  onChange={(e) => setItemId(e.target.value)}
+                  style={{ display: 'block', width: '100%' }}
+                >
+                  <option value="">Select an item…</option>
+                  {items?.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.sku} — {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
-        <div style={{ marginBottom: 8 }}>
-          <label>
-            Quantity
-            <input
-              type="number"
-              min={1}
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              style={{ display: 'block', width: '100%' }}
-            />
-          </label>
-        </div>
+            <div style={{ marginBottom: 8 }}>
+              <label>
+                Quantity
+                <input
+                  type="number"
+                  min={1}
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  style={{ display: 'block', width: '100%' }}
+                />
+              </label>
+            </div>
 
-        {shortItems.length > 0 && (
-          <div style={{ color: '#b91c1c', marginBottom: 8 }}>
-            <p style={{ margin: 0 }}>
-              Not enough stock to build this quantity:
-            </p>
-            <ul>
-              {shortItems.map((s) => (
-                <li key={s.item_id}>
-                  {itemsById.get(s.item_id)?.name ?? s.item_id}: need{' '}
-                  {s.required}, have {s.available} (short {s.shortfall})
-                  {buildableHint(s)}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+            {shortItems.length > 0 && (
+              <div style={{ color: '#b91c1c', marginBottom: 8 }}>
+                <p style={{ margin: 0 }}>
+                  Not enough stock to build this quantity:
+                </p>
+                <ul>
+                  {shortItems.map((s) => (
+                    <li key={s.item_id}>
+                      {itemsById.get(s.item_id)?.name ?? s.item_id}: need{' '}
+                      {s.required}, have {s.available} (short {s.shortfall})
+                      {buildableHint(s)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
-        {formError && <p style={{ color: 'red' }}>{formError}</p>}
+            {formError && <p style={{ color: 'red' }}>{formError}</p>}
 
-        <button type="submit" disabled={createOrder.isPending}>
-          {createOrder.isPending ? 'Creating…' : 'Create order'}
-        </button>
-      </form>
+            <button type="submit" disabled={createOrder.isPending}>
+              {createOrder.isPending ? 'Creating…' : 'Create order'}
+            </button>
+          </form>
+        </>
+      )}
     </div>
   );
 }

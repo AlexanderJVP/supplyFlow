@@ -56,15 +56,20 @@ describe('items routes (integration, requires local Supabase)', () => {
     expect(tenantBItems.some((i) => i.id === item.id)).toBe(false);
   });
 
-  it('requires items.view to list items', async () => {
-    const withoutView = await createRestrictedUser(tenantA.tenant_id, {
+  it('lists items for any page that needs them, and for no one else', async () => {
+    const noViews = {
       ...NO_PERMISSIONS,
       items: { ...NO_PERMISSIONS.items, view: false },
+      inventory: { ...NO_PERMISSIONS.inventory, view: false },
+      production: { ...NO_PERMISSIONS.production, view: false },
+      proposals: { ...NO_PERMISSIONS.proposals, view: false },
+    };
+    const withoutView = await createRestrictedUser(tenantA.tenant_id, noViews);
+    // Production page only: still needs item names and the item picker.
+    const withView = await createRestrictedUser(tenantA.tenant_id, {
+      ...noViews,
+      production: { ...noViews.production, view: true },
     });
-    const withView = await createRestrictedUser(
-      tenantA.tenant_id,
-      NO_PERMISSIONS
-    );
 
     const listAs = (accessToken: string) =>
       app.fetch(

@@ -33,12 +33,22 @@ export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
 
 // Permission key format: 'items.create', 'bom.edit', 'admin.manage_users'
 export function requirePermission(key: string) {
-  const [domain, action] = key.split('.');
+  return requireAnyPermission(key);
+}
+
+// Passes when the caller holds at least one of the given permissions. A
+// missing domain block counts as "not held" (stored JSON can lack one).
+export function requireAnyPermission(...keys: string[]) {
   return createMiddleware<AppEnv>(async (c, next) => {
-    const perms = c.get('user').permissions;
-    if (!(perms as Record<string, Record<string, boolean>>)[domain]?.[action]) {
-      return c.json({ error: 'Forbidden' }, 403);
-    }
+    const perms = c.get('user').permissions as Record<
+      string,
+      Record<string, boolean> | undefined
+    >;
+    const allowed = keys.some((key) => {
+      const [domain, action] = key.split('.');
+      return perms[domain]?.[action] === true;
+    });
+    if (!allowed) return c.json({ error: 'Forbidden' }, 403);
     await next();
   });
 }

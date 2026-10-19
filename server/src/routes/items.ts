@@ -6,7 +6,11 @@ import {
   PaginationQuerySchema,
   UpdateItemSchema,
 } from '@manufacturing/shared';
-import { requireAuth, requirePermission } from '../middleware/auth';
+import {
+  requireAnyPermission,
+  requireAuth,
+  requirePermission,
+} from '../middleware/auth';
 import type { AppEnv } from '../types';
 
 export const itemsRouter = new Hono<AppEnv>();
@@ -14,7 +18,16 @@ itemsRouter.use('*', requireAuth);
 
 itemsRouter.get(
   '/',
-  requirePermission('items.view'),
+  // Pages that pick or name items (inventory, production, a bom_change
+  // proposal) need this list too -- whoever may use such a page sees the
+  // items on it (product owner, 2026-10-19). The Items page itself still
+  // requires items.view on the client.
+  requireAnyPermission(
+    'items.view',
+    'inventory.view',
+    'production.view',
+    'proposals.view'
+  ),
   zValidator('query', PaginationQuerySchema),
   async (c) => {
     const { after, limit } = c.req.valid('query');

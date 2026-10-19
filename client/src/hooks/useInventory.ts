@@ -8,13 +8,14 @@ import type {
 
 import { api } from '../lib/api';
 
-export function useCurrentStock() {
+export function useCurrentStock(enabled = true) {
   return useQuery({
     queryKey: ['inventory'],
     queryFn: () =>
       api
         .get<StockWithItem[]>('/inventory', { params: { limit: 200 } })
         .then((r) => r.data),
+    enabled,
   });
 }
 
