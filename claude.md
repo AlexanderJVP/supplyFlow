@@ -236,7 +236,9 @@ sections below are the detailed history and spec.
    `/bom/:id/lines` also to `proposals.view`.
    **Also done 2026-10-20: `STORY-074`** (PR #9, `cda6299`) — `current_stock`
    view was readable cross-tenant and unauthenticated via PostgREST
-   (Supabase advisor); now `security_invoker`, Security Rule 11. Found with
+   (Supabase advisor); now `security_invoker`, Security Rule 11. Migration
+   `20261020000000` pushed to production; owner confirmed the advisor
+   warning is gone (2026-10-20). Found with
    it: RLS checks only the tenant, never the role — `ADR-005` +
    `STORY-075` (staging) must land before a second company. `STORY-076`
    (staging): error messages show the real cause.

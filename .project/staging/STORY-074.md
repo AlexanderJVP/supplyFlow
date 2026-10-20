@@ -44,7 +44,9 @@ read by another company or by anyone without a login.
 - `CLAUDE.md` security rules: every view is created with
   `security_invoker = true`.
 - Migration applied to production (`pnpm dlx supabase db push`) **before**
-  merge; the Supabase advisor warning is gone afterwards.
+  merge; the Supabase advisor warning is gone afterwards. **Done
+  2026-10-20** (PR #9, `cda6299`): pushed to production, owner confirmed
+  the warning is gone.
 
 ## Notes
 
