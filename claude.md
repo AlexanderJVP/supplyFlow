@@ -120,7 +120,23 @@ per-tenant configuration and self-service admin as first-class concerns.
 Read this first. It says where the work stands and what to do next; the
 sections below are the detailed history and spec.
 
-### Where we are (updated 2026-10-05, end of session; `/catchup` checks 2026-10-18 and 2026-10-19)
+### Where we are (updated 2026-10-20, end of session; earlier: 2026-10-05, `/catchup` 2026-10-18/19)
+
+- **End of session 2026-10-20 — resume here.** Shipped and live this
+  session: `STORY-071` (PR #6), `STORY-061` (PR #7), `STORY-062` (PR #8),
+  `STORY-074` (PR #9; migration pushed, Supabase advisor warning gone).
+  All CI + Deploy runs green; owner tested the platform end to end (all OK,
+  except staying logged in >1h — still untested). **Open at session end:**
+  docs PR #10 (`ai/docs-2026-10-20`, CI green) — if `gh pr view 10` still
+  says OPEN, the owner merges it with `! gh pr merge 10 --squash
+  --delete-branch` (if the local checkout then fails on `claude.md`:
+  `git stash`, `git switch master`, `git pull --ff-only`, `git stash pop`).
+  Waiting on the owner in the board app: set 061/062/068/074 to `done`
+  (071 after one CI run on Ubuntu 26), sprint 1 goal, review staging
+  `STORY-072/073/075/076` + `ADR-005` (open questions: ADR-005 step
+  timing; Dutch/bilingual UI for 072/073). **Next code work:** `STORY-056`
+  (where-used), only after the owner's go-ahead. The older bullets below
+  are history.
 
 - **`/catchup` 2026-10-18, re-checked 2026-10-19 — no code changes since 2026-10-05.** Still uncommitted on 2026-10-19: the 2026-10-18 doc updates (`AGENTS.md`, `claude.md`, `domain-model.json`, `domain-model-notes.md` — ADR-001/002 slice `proposed` → `planned`) plus the two staging stories below; nothing on a branch or PR yet. `master` =
   `origin/master` = `2cee745` (STORY-068, PR #5); last CI + Deploy runs
